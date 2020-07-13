@@ -2259,7 +2259,7 @@ static uint8 decodeNextMCU(void)
             fwrite(gCoeffBuf, sizeof(int16), 64, coefficients);
 
             // Sprawdzenie poprawności zapisu:
-           // fread(gCoeffBuf, sizeof(int16), 64, coefficients_read);
+           // fread(gCoeffBuf, sizeof(int16), 64, coefficients);
 
             transformBlock(mcuBlock);
         }

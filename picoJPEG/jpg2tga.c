@@ -343,7 +343,7 @@ static void image_compare(image_compare_results *pResults, int width, int height
 int main(int arg_c, char *arg_v[])
 {
     FILE * coeffs1;
-    coeffs1 = fopen("coefficients1", "wb");
+    const char *coeffs_src;
 
     int n = 1;
     const char *pSrc_filename;
@@ -364,8 +364,17 @@ int main(int arg_c, char *arg_v[])
     if (arg_c == 4)
         reduce = atoi(arg_v[n++]) != 0;
 */
-    pSrc_filename = "image1.jpg";
-    pDst_filename = "image1.bmp";
+
+    //pSrc_filename = "image1.jpg";
+    //pDst_filename = "image1.bmp";
+
+    pSrc_filename = arg_v[1];
+    pDst_filename = arg_v[2];
+    coeffs_src = arg_v[3];
+
+    coeffs1 = fopen(coeffs_src, "wb");
+  //  coeffs1 = fopen(coeffs_src, "rb");
+
     printf("Source file:      \"%s\"\n", pSrc_filename);
     printf("Destination file: \"%s\"\n", pDst_filename);
     printf("Reduce during decoding: %u\n", reduce);
@@ -429,7 +438,7 @@ int main(int arg_c, char *arg_v[])
     */
     free(pImage);
     fclose(coeffs1);
-
+    /*
     //Obraz nr2
     coeffs1 = fopen("coefficients2", "wb");
 
@@ -493,7 +502,7 @@ int main(int arg_c, char *arg_v[])
     fclose(coeffs1);
     fclose(coeffs2);
     fclose(diff);
-
+    */
     printf("Done!");
 
 
