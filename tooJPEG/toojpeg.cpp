@@ -250,16 +250,18 @@ namespace // anonymous namespace to hide local functions / constants / etc.
 
 // run DCT, quantize and write Huffman bit codes
     int16_t encodeBlock(BitWriter& writer, int16_t block[64], const float scaled[8*8], int16_t lastDC,
-                        const BitCode huffmanDC[256], const BitCode huffmanAC[256], const BitCode* codewords)
+                        const BitCode huffmanDC[256], const BitCode huffmanAC[256], const BitCode* codewords, FILE * coeffs)
     {
         // "linearize" the 8x8 block, treat it as a flat array of 64 floats
-        //auto block64 = (float*) block;
+      //  auto block64 = (float*) block;
 
         float block64[64];
         for(int i = 0; i < 64; i++)
         {
+            block[i] = block[i] >> 1;
             block64[i] = (float) block[i];
         }
+
 /*
         // DCT: rows
         for (auto offset = 0; offset < 8; offset++)
@@ -267,13 +269,28 @@ namespace // anonymous namespace to hide local functions / constants / etc.
         // DCT: columns
         for (auto offset = 0; offset < 8; offset++)
             DCT(block64 + offset*1, 8);
+
+        int16_t buff[64];
+        for(int i = 0; i < 64; i++)
+        {
+            buff[i] = (int16_t) block64[i];
+        }
+        fwrite(buff, sizeof(int16_t), 64, coeffs);
 */
+
         // scale
         for (auto i = 0; i < 8*8; i++)
+        {
             block64[i] *= scaled[i];
+            //block64[i] = block64[i] / 2;
+        }
+
+
+        //printf("%f \n", block64[0]);
 
         // encode DC (the first coefficient is the "average color" of the 8x8 block)
         auto DC = int(block64[0] + (block64[0] >= 0 ? +0.5f : -0.5f)); // C++11's nearbyint() achieves a similar effect
+        //auto DC = int(block64[0]);
 
         // quantize and zigzag the other 63 coefficients
         auto posNonZero = 0; // find last coefficient which is not zero (because trailing zeros are encoded differently)
@@ -283,6 +300,7 @@ namespace // anonymous namespace to hide local functions / constants / etc.
             auto value = block64[ZigZagInv[i]];
             // round to nearest integer
             quantized[i] = int(value + (value >= 0 ? +0.5f : -0.5f)); // C++11's nearbyint() achieves a similar effect
+            //quantized[i] = int(value);
             // remember offset of last non-zero coefficient
             if (quantized[i] != 0)
                 posNonZero = i;
@@ -612,7 +630,8 @@ namespace TooJpeg
 
                         fread(gCoeffBuf, sizeof(int16_t), 64, coeffs);
 
-                        lastYDC = encodeBlock(bitWriter, gCoeffBuf, scaledLuminance, lastYDC, huffmanLuminanceDC, huffmanLuminanceAC, codewords);
+                        lastYDC = encodeBlock(bitWriter, gCoeffBuf, scaledLuminance, lastYDC, huffmanLuminanceDC, huffmanLuminanceAC, codewords, coeffs);
+                       // lastYDC = encodeBlock(bitWriter, Y, scaledLuminance, lastYDC, huffmanLuminanceDC, huffmanLuminanceAC, codewords, coeffs);
                         // Cb and Cr are encoded about 50 lines below
                     }
 
@@ -666,11 +685,15 @@ namespace TooJpeg
                 // encode Cb and Cr
 
                 fread(gCoeffBuf, sizeof(int16_t), 64, coeffs);
-                lastCbDC = encodeBlock(bitWriter, gCoeffBuf, scaledChrominance, lastCbDC, huffmanChrominanceDC, huffmanChrominanceAC, codewords);
+                lastCbDC = encodeBlock(bitWriter, gCoeffBuf, scaledChrominance, lastCbDC, huffmanChrominanceDC, huffmanChrominanceAC, codewords, coeffs);
+
+               //lastCbDC = encodeBlock(bitWriter, Cb, scaledChrominance, lastCbDC, huffmanChrominanceDC, huffmanChrominanceAC, codewords, coeffs);
 
                 fread(gCoeffBuf, sizeof(int16_t), 64, coeffs);
-                lastCrDC = encodeBlock(bitWriter, gCoeffBuf, scaledChrominance, lastCrDC, huffmanChrominanceDC, huffmanChrominanceAC, codewords);
+                lastCrDC = encodeBlock(bitWriter, gCoeffBuf, scaledChrominance, lastCrDC, huffmanChrominanceDC, huffmanChrominanceAC, codewords, coeffs);
+              //  lastCrDC = encodeBlock(bitWriter, Cr, scaledChrominance, lastCrDC, huffmanChrominanceDC, huffmanChrominanceAC, codewords, coeffs);
             }
+
 
         bitWriter.flush(); // now image is completely encoded, write any bits still left in the buffer
 
