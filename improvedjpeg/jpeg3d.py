@@ -5,6 +5,9 @@ from scipy.fftpack import dct, idct
 
 coeffs = []
 zigzag_coeffs = []
+W = []
+X = []
+Z = []
 
 #Read from file:
 def read_from_files():
@@ -66,148 +69,149 @@ def save_files():
         file.write(coeffs[i])
         file.close()
 
-        os.system("picojpegtobmp.exe klatki/frame0.jpg klatki/decode"+str(i)+".bmp frame")
+        os.system("picojpegtobmp.exe klatki/frame"+str(i)+".jpg klatki/decode"+str(i)+".bmp frame")
 
     print("\n Saved!")
     return
 
 
-def zigzag_block(variable, mode): #mode 0:  matrix -> vector, 1: vector -> matrix
+def zigzag_block(variable, mode, bool): #mode 0:  matrix -> vector, 1: vector -> matrix
 
-    N = 8 #8x8x8 cube
-    D = 3 #3 dimensions
-    T = (N-1)*D+1
-    Vc = []
-    Vs = []
-    Lic = []
-    Lis = []
-    Lsc = []
-    Lss = []
-    Wc = []
-    Ws = []
-    Av = []
-    Ci = []
-    Cd = []
-    Ci2 = []
-    Cd2 = []
-    Sig = []
     result = []
+    if bool == 0:
+        N = 8 #8x8x8 cube
+        D = 3 #3 dimensions
+        T = (N-1)*D+1
+        Vc = []
+        Vs = []
+        Lic = []
+        Lis = []
+        Lsc = []
+        Lss = []
+        Wc = []
+        Ws = []
+        Av = []
+        Ci = []
+        Cd = []
+        Ci2 = []
+        Cd2 = []
+        Sig = []
 
-    for i in range(1, N+1):
-        Vc.append(i)
-        Vs.append(i)
-        Av.append(i)
-        Cd.append(i)
-    for i in range(N-1, 0, -1):
-        Vc.append(i)
+        for i in range(1, N+1):
+            Vc.append(i)
+            Vs.append(i)
+            Av.append(i)
+            Cd.append(i)
+        for i in range(N-1, 0, -1):
+            Vc.append(i)
 
-    lVc = len(Vc)
+        lVc = len(Vc)
 
-    for i in range(0, T):
-        Lic.append(0)
-        Lis.append(0)
-        Lsc.append(0)
-        Lss.append(0)
+        for i in range(0, T):
+            Lic.append(0)
+            Lis.append(0)
+            Lsc.append(0)
+            Lss.append(0)
 
-    for t in range(0, T):
-        if t < N:
-            Lic[T-t-1] = 1
-        else:
-            Lic[T-t-1] = t-N+2
-        if t < N:
-            Lsc[t] = lVc
-        else:
-            Lsc[t] = lVc-t+N-1
-        if t < T-(N-1):
-            Lis[t] = 1
-        else:
-            Lis[t] = t-(T-N)+1
-        if t < N:
-            Lss[t] = t + 1
-        else:
-            Lss[t] = N
-
-    for i in range(0, N-2):
-        Av.append(N)
-
-    for i in range(N, 0, -1):
-        Av.append(i)
-
-    for i in range(0, N-1):
-        Ci.append(1)
-
-    for i in range(1, N+1):
-        Ci.append(i)
-
-    lCi = len(Ci)
-
-    for i in range(0, N-1):
-        Cd.append(N)
-
-    d = 0
-
-    for t in range(0, T):
-        if t % 2 != 0:
-            for i in range(Lic[t], Lsc[t]+1):
-                Wc.append(Vc[i-1])
-
-            for i in range(Lis[t], Lss[t]+1):
-                Ws.append(Vs[i-1])
-
+        for t in range(0, T):
             if t < N:
-                for i in range(d+Av[t]-1, d-1, -1):
-                    Ci2.append(Ci[i])
-
-                for i in range(d+Av[t]-1, d-1, -1):
-                    Cd2.append(Cd[i])
+                Lic[T-t-1] = 1
             else:
-                d = d+1
-                for i in range(d+Av[t]-1, d-1, -1):
-                    Ci2.append(Ci[i])
-
-                for i in range(d+Av[t]-1, d-1, -1):
-                    Cd2.append(Cd[i])
-        else:
-            for i in range(Lsc[t], Lic[t]-1, -1):
-                Wc.append(Vc[i-1])
-            for i in range(Lss[t], Lis[t]-1, -1):
-                Ws.append(Vs[i-1])
-
+                Lic[T-t-1] = t-N+2
             if t < N:
-                for i in range(d, d+Av[t]):
-                    Ci2.append(Ci[i])
-
-                for i in range(d, d+Av[t]):
-                    Cd2.append(Cd[i])
+                Lsc[t] = lVc
             else:
-                d = d+1
-                for i in range(d, d+Av[t]):
-                    Ci2.append(Ci[i])
+                Lsc[t] = lVc-t+N-1
+            if t < T-(N-1):
+                Lis[t] = 1
+            else:
+                Lis[t] = t-(T-N)+1
+            if t < N:
+                Lss[t] = t + 1
+            else:
+                Lss[t] = N
 
-                for i in range(d, d+Av[t]):
-                    Cd2.append(Cd[i])
-        for i in range(0, Av[t]):
-            Sig.append((-1) ** (t+1))
+        for i in range(0, N-2):
+            Av.append(N)
 
-    L = len(Ws)
-    W = []
-    X = []
-    Z = []
+        for i in range(N, 0, -1):
+            Av.append(i)
 
-    for l in range(0, L):
-        for i in range(0, Wc[l]):
-            W.append(Ws[l])
+        for i in range(0, N-1):
+            Ci.append(1)
 
-        if Sig[l] > 0:
-            for i in range(Ci2[l], Cd2[l]+1):
-                X.append(i)
-            for i in range(Cd2[l], Ci2[l]-1, -1):
-                Z.append(i)
-        else:
-            for i in range(Ci2[l], Cd2[l]+1):
-                Z.append(i)
-            for i in range(Cd2[l], Ci2[l]-1, -1):
-                X.append(i)
+        for i in range(1, N+1):
+            Ci.append(i)
+
+        lCi = len(Ci)
+
+        for i in range(0, N-1):
+            Cd.append(N)
+
+        d = 0
+
+        for t in range(0, T):
+            if t % 2 != 0:
+                for i in range(Lic[t], Lsc[t]+1):
+                    Wc.append(Vc[i-1])
+
+                for i in range(Lis[t], Lss[t]+1):
+                    Ws.append(Vs[i-1])
+
+                if t < N:
+                    for i in range(d+Av[t]-1, d-1, -1):
+                        Ci2.append(Ci[i])
+
+                    for i in range(d+Av[t]-1, d-1, -1):
+                        Cd2.append(Cd[i])
+                else:
+                    d = d+1
+                    for i in range(d+Av[t]-1, d-1, -1):
+                        Ci2.append(Ci[i])
+
+                    for i in range(d+Av[t]-1, d-1, -1):
+                        Cd2.append(Cd[i])
+            else:
+                for i in range(Lsc[t], Lic[t]-1, -1):
+                    Wc.append(Vc[i-1])
+                for i in range(Lss[t], Lis[t]-1, -1):
+                    Ws.append(Vs[i-1])
+
+                if t < N:
+                    for i in range(d, d+Av[t]):
+                        Ci2.append(Ci[i])
+
+                    for i in range(d, d+Av[t]):
+                        Cd2.append(Cd[i])
+                else:
+                    d = d+1
+                    for i in range(d, d+Av[t]):
+                        Ci2.append(Ci[i])
+
+                    for i in range(d, d+Av[t]):
+                        Cd2.append(Cd[i])
+            for i in range(0, Av[t]):
+                Sig.append((-1) ** (t+1))
+
+        L = len(Ws)
+        #W = []
+        #X = []
+        #Z = []
+
+        for l in range(0, L):
+            for i in range(0, Wc[l]):
+                W.append(Ws[l])
+
+            if Sig[l] > 0:
+                for i in range(Ci2[l], Cd2[l]+1):
+                    X.append(i)
+                for i in range(Cd2[l], Ci2[l]-1, -1):
+                    Z.append(i)
+            else:
+                for i in range(Ci2[l], Cd2[l]+1):
+                    Z.append(i)
+                for i in range(Cd2[l], Ci2[l]-1, -1):
+                    X.append(i)
 
     LL = len(W)
 
@@ -230,6 +234,7 @@ def zigzag_block(variable, mode): #mode 0:  matrix -> vector, 1: vector -> matri
 
 def zigzag(blocks):
 
+    bool = 0
     for i in range(0, blocks):
 
         mat = []
@@ -241,7 +246,8 @@ def zigzag(blocks):
                 for z in range(0, 8):
                     mat[x][y].append(coeffs[x][(y*8)+z])
 
-        zigzag_coeffs.append(zigzag_block(mat, 0))
+        zigzag_coeffs.append(zigzag_block(mat, 0, bool))
+        bool = 1
 
     print("Zig-zag done!")
     return
@@ -251,7 +257,7 @@ def izigzag(blocks):
 
     for i in range(0, blocks):
 
-        mat = zigzag_block(zigzag_coeffs[i], 1)
+        mat = zigzag_block(zigzag_coeffs[i], 1, 1)
 
         for x in range(0, 8):
             for y in range(0, 8):
