@@ -2369,6 +2369,75 @@ void DCT(float block[8], uint8_t stride = 1) // stride must be 1 (=horizontal) o
     block5 = z7 + z2; block3 = z7 - z2;
 }
 
+void IDCT(int16_t block[8])
+{
+    int16_t* pSrc = block;
+
+    if ((pSrc[1] | pSrc[2] | pSrc[3] | pSrc[4] | pSrc[5] | pSrc[6] | pSrc[7]) == 0)
+    {
+        // Short circuit the 1D IDCT if only the DC component is non-zero
+        int16_t src0 = *pSrc;
+
+        *(pSrc+1) = src0;
+        *(pSrc+2) = src0;
+        *(pSrc+3) = src0;
+        *(pSrc+4) = src0;
+        *(pSrc+5) = src0;
+        *(pSrc+6) = src0;
+        *(pSrc+7) = src0;
+    }
+    else
+    {
+        int16_t src4 = *(pSrc+5);
+        int16_t src7 = *(pSrc+3);
+        int16_t x4  = src4 - src7;
+        int16_t x7  = src4 + src7;
+
+        int16_t src5 = *(pSrc+1);
+        int16_t src6 = *(pSrc+7);
+        int16_t x5  = src5 + src6;
+        int16_t x6  = src5 - src6;
+
+        int16_t tmp1 = imul_b5(x4 - x6);
+        int16_t stg26 = imul_b4(x6) - tmp1;
+
+        int16_t x24 = tmp1 - imul_b2(x4);
+
+        int16_t x15 = x5 - x7;
+        int16_t x17 = x5 + x7;
+
+        int16_t tmp2 = stg26 - x17;
+        int16_t tmp3 = imul_b1_b3(x15) - tmp2;
+        int16_t x44 = tmp3 + x24;
+
+        int16_t src0 = *(pSrc+0);
+        int16_t src1 = *(pSrc+4);
+        int16_t x30 = src0 + src1;
+        int16_t x31 = src0 - src1;
+
+        int16_t src2 = *(pSrc+2);
+        int16_t src3 = *(pSrc+6);
+        int16_t x12 = src2 - src3;
+        int16_t x13 = src2 + src3;
+
+        int16_t x32 = imul_b1_b3(x12) - x13;
+
+        int16_t x40 = x30 + x13;
+        int16_t x43 = x30 - x13;
+        int16_t x41 = x31 + x32;
+        int16_t x42 = x31 - x32;
+
+        *(pSrc+0) = x40 + x17;
+        *(pSrc+1) = x41 + tmp2;
+        *(pSrc+2) = x42 + tmp3;
+        *(pSrc+3) = x43 - x44;
+        *(pSrc+4) = x43 + x44;
+        *(pSrc+5) = x42 - tmp3;
+        *(pSrc+6) = x41 - tmp2;
+        *(pSrc+7) = x40 - x17;
+    }
+}
+
 void DCT_function()
 {
     for(int i = 0; i < number_of_coeffs; i++)
@@ -2383,6 +2452,24 @@ void DCT_function()
         for(int j = 0; j < 8; j++)
         {
             coeffs[j][i] = nearbyint(block[j]);
+        }
+    }
+}
+
+void IDCT_function()
+{
+    for(int i = 0; i < number_of_coeffs; i++)
+    {
+        int16_t block[8];
+
+        for(int j = 0; j < 8; j++)
+        {
+            block[j] = coeffs[j][i];
+        }
+        IDCT(block);
+        for(int j = 0; j < 8; j++)
+        {
+            coeffs[j][i] = nearbyint(block[j]/8.0);
         }
     }
 }
@@ -2409,10 +2496,11 @@ int main() {
             return EXIT_FAILURE;
         }
     }
-    
 
-    for(int i = 0; i < 8; i++)
-    {
+    DCT_function();
+    IDCT_function();
+    
+    for(int i = 0; i < 8; i++) {
         counter = 0;
         string x = "klatki/frame"+to_string(i)+".jpg";
         pSrc_filename = x.c_str();
@@ -2432,5 +2520,6 @@ int main() {
             return EXIT_FAILURE;
         }
     }
+
     return 0;
 }
