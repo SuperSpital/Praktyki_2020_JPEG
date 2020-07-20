@@ -2575,6 +2575,92 @@ void izigzag_function()
     }
 }
 
+int16_t RLC_encode_block(int16_t lastDC, int nr_block, FILE * file)
+{
+    int16_t buf[1];
+    int16_t DC = zigzagcoeffs[nr_block][0];
+    buf[0] = DC - lastDC;
+
+    fwrite(buf, sizeof(int16_t), 1, file);
+
+    int16_t zeros = 0;
+
+    for(int i = 1; i < 512; i++)
+    {
+        if(zigzagcoeffs[nr_block][i] != 0)
+        {
+            buf[0] = zeros;
+            fwrite(buf, sizeof(int16_t), 1, file);
+            buf[0] = zigzagcoeffs[nr_block][i];
+            fwrite(buf, sizeof(int16_t), 1, file);
+            zeros = 0;
+        }
+        else
+        {
+            zeros++;
+        }
+    }
+    if(zeros > 0)
+    {
+        buf[0] = 0;
+        fwrite(buf, sizeof(int16_t), 1, file);
+        fwrite(buf, sizeof(int16_t), 1, file);
+    }
+
+    return lastDC;
+}
+
+void RLC_encode(FILE * file)
+{
+    int16_t lastDC = 0;
+    for(int i = 0; i < (number_of_coeffs/64); i++)
+    {
+        lastDC = RLC_encode_block(lastDC, i, file);
+    }
+}
+
+void RLC_decode(FILE * file)
+{
+    int16_t lastDC = 0;
+    int16_t buf[2];
+
+    for(int i = 0; i < (number_of_coeffs/64); i++)
+    {
+        int l = 0;
+        fread(buf, sizeof(int16_t), 1, file);
+        zigzagcoeffs[i][l] = buf[0] + lastDC;
+        lastDC = buf[0];
+        l++;
+
+        while(true)
+        {
+            if(l == 512)
+                break;
+
+            fread(buf, sizeof(int16_t), 2, file);
+
+            if(buf[0] == 0 and buf[1] == 0)
+            {
+                for(int j = l; j < 512; j++)
+                {
+                    zigzagcoeffs[i][j] = 0;
+                }
+                break;
+            }
+            else
+            {
+                for(int j = 0; j < buf[0]; j++)
+                {
+                    zigzagcoeffs[i][j] = 0;
+                    l++;
+                }
+                zigzagcoeffs[i][l] = buf[1];
+                l++;
+            }
+        }
+    }
+}
+
 int main() {
 
     int n = 1;
@@ -2600,6 +2686,15 @@ int main() {
 
     DCT_function();
     zizgzag_function();
+
+    FILE * file = fopen("coeffs", "wb");
+    RLC_encode(file);
+    fclose(file);
+
+    file = fopen("coeffs", "rb");
+    RLC_decode(file);
+    fclose(file);
+
     izigzag_function();
     IDCT_function();
 
