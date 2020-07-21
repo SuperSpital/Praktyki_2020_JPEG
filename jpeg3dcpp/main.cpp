@@ -2541,7 +2541,7 @@ void zizgzag_function()
             {
                 for(int z = 0; z < 8; z++)
                 {
-                    matrix[x][y][z] = coeffs[x][(y*8)+z];
+                    matrix[x][y][z] = coeffs[x][(y*8)+z+(i*64)];
                 }
             }
         }
@@ -2568,7 +2568,7 @@ void izigzag_function()
             {
                 for(int z = 0; z < 8; z++)
                 {
-                    coeffs[x][(y*8)+z] = matrix[x][y][z];
+                    coeffs[x][(y*8)+z+(i*64)] = matrix[x][y][z];
                 }
             }
         }
@@ -2624,7 +2624,8 @@ void RLC_decode(FILE * file)
     int16_t lastDC = 0;
     int16_t buf[1];
 
-    for(int i = 0; i < (number_of_coeffs/64); i++)
+    //for(int i = 0; i < (number_of_coeffs/64); i++)
+    for(int i = 0; i < 1; i++)
     {
         int l = 0;
         fread(buf, sizeof(int16_t), 1, file);
@@ -2652,7 +2653,7 @@ void RLC_decode(FILE * file)
             {
                 for(int j = 0; j < buf[0]; j++)
                 {
-                    zigzagcoeffs[i][j] = 0;
+                    zigzagcoeffs[i][l] = 0;
                     l++;
                 }
                 fread(buf, sizeof(int16_t), 1, file);
