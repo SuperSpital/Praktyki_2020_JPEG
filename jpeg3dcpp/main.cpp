@@ -1,5 +1,6 @@
 #include <iostream>
 #include <cmath>
+#include <fstream>
 
 #include "stb_image.c"
 
@@ -406,6 +407,60 @@ int Z[] = {1, 2, 1, 1, 1, 1, 2, 1, 2, 3, 4, 3, 2, 1, 3, 2, 1, 2, 1, 1, 1, 1, 2, 
 
 int16_t zigzagcoeffs[48960][512];
 
+const uint8_t ZigZagInv[8*8] =
+        {  0, 1, 8,16, 9, 2, 3,10,   // ZigZag[] =  0, 1, 5, 6,14,15,27,28,
+           17,24,32,25,18,11, 4, 5,   //             2, 4, 7,13,16,26,29,42,
+           12,19,26,33,40,48,41,34,   //             3, 8,12,17,25,30,41,43,
+           27,20,13, 6, 7,14,21,28,   //             9,11,18,24,31,40,44,53,
+           35,42,49,56,57,50,43,36,   //            10,19,23,32,39,45,52,54,
+           29,22,15,23,30,37,44,51,   //            20,22,33,38,46,51,55,60,
+           58,59,52,45,38,31,39,46,   //            21,34,37,47,50,56,59,61,
+           53,60,61,54,47,55,62,63 }; //            35,36,48,49,57,58,62,63
+
+const uint8_t DefaultQuantLuminance[8*8] =
+        { 16, 11, 10, 16, 24, 40, 51, 61, // there are a few experts proposing slightly more efficient values,
+          12, 12, 14, 19, 26, 58, 60, 55, // e.g. https://www.imagemagick.org/discourse-server/viewtopic.php?t=20333
+          14, 13, 16, 24, 40, 57, 69, 56, // btw: Google's Guetzli project optimizes the quantization tables per image
+          14, 17, 22, 29, 51, 87, 80, 62,
+          18, 22, 37, 56, 68,109,103, 77,
+          24, 35, 55, 64, 81,104,113, 92,
+          49, 64, 78, 87,103,121,120,101,
+          72, 92, 95, 98,112,100,103, 99 };
+
+const uint8_t DefaultQuantChrominance[8*8] =
+        { 17, 18, 24, 47, 99, 99, 99, 99,
+          18, 21, 26, 66, 99, 99, 99, 99,
+          24, 26, 56, 99, 99, 99, 99, 99,
+          47, 66, 99, 99, 99, 99, 99, 99,
+          99, 99, 99, 99, 99, 99, 99, 99,
+          99, 99, 99, 99, 99, 99, 99, 99,
+          99, 99, 99, 99, 99, 99, 99, 99,
+          99, 99, 99, 99, 99, 99, 99, 99 };
+
+const uint8_t DcLuminanceCodesPerBitsize[16]   = { 0,1,5,1,1,1,1,1,1,0,0,0,0,0,0,0 };   // sum = 12
+const uint8_t DcLuminanceValues         [12]   = { 0,1,2,3,4,5,6,7,8,9,10,11 };         // => 12 codes
+const uint8_t AcLuminanceCodesPerBitsize[16]   = { 0,2,1,3,3,2,4,3,5,5,4,4,0,0,1,125 }; // sum = 162
+const uint8_t AcLuminanceValues        [162]   =                                        // => 162 codes
+        { 0x01,0x02,0x03,0x00,0x04,0x11,0x05,0x12,0x21,0x31,0x41,0x06,0x13,0x51,0x61,0x07,0x22,0x71,0x14,0x32,0x81,0x91,0xA1,0x08, // 16*10+2 symbols because
+          0x23,0x42,0xB1,0xC1,0x15,0x52,0xD1,0xF0,0x24,0x33,0x62,0x72,0x82,0x09,0x0A,0x16,0x17,0x18,0x19,0x1A,0x25,0x26,0x27,0x28, // upper 4 bits can be 0..F
+          0x29,0x2A,0x34,0x35,0x36,0x37,0x38,0x39,0x3A,0x43,0x44,0x45,0x46,0x47,0x48,0x49,0x4A,0x53,0x54,0x55,0x56,0x57,0x58,0x59, // while lower 4 bits can be 1..A
+          0x5A,0x63,0x64,0x65,0x66,0x67,0x68,0x69,0x6A,0x73,0x74,0x75,0x76,0x77,0x78,0x79,0x7A,0x83,0x84,0x85,0x86,0x87,0x88,0x89, // plus two special codes 0x00 and 0xF0
+          0x8A,0x92,0x93,0x94,0x95,0x96,0x97,0x98,0x99,0x9A,0xA2,0xA3,0xA4,0xA5,0xA6,0xA7,0xA8,0xA9,0xAA,0xB2,0xB3,0xB4,0xB5,0xB6, // order of these symbols was determined empirically by JPEG committee
+          0xB7,0xB8,0xB9,0xBA,0xC2,0xC3,0xC4,0xC5,0xC6,0xC7,0xC8,0xC9,0xCA,0xD2,0xD3,0xD4,0xD5,0xD6,0xD7,0xD8,0xD9,0xDA,0xE1,0xE2,
+          0xE3,0xE4,0xE5,0xE6,0xE7,0xE8,0xE9,0xEA,0xF1,0xF2,0xF3,0xF4,0xF5,0xF6,0xF7,0xF8,0xF9,0xFA };
+// Huffman definitions for second DC/AC tables (chrominance / Cb and Cr channels)
+const uint8_t DcChrominanceCodesPerBitsize[16] = { 0,3,1,1,1,1,1,1,1,1,1,0,0,0,0,0 };   // sum = 12
+const uint8_t DcChrominanceValues         [12] = { 0,1,2,3,4,5,6,7,8,9,10,11 };         // => 12 codes (identical to DcLuminanceValues)
+const uint8_t AcChrominanceCodesPerBitsize[16] = { 0,2,1,2,4,4,3,4,7,5,4,4,0,1,2,119 }; // sum = 162
+const uint8_t AcChrominanceValues        [162] =                                        // => 162 codes
+        { 0x00,0x01,0x02,0x03,0x11,0x04,0x05,0x21,0x31,0x06,0x12,0x41,0x51,0x07,0x61,0x71,0x13,0x22,0x32,0x81,0x08,0x14,0x42,0x91, // same number of symbol, just different order
+          0xA1,0xB1,0xC1,0x09,0x23,0x33,0x52,0xF0,0x15,0x62,0x72,0xD1,0x0A,0x16,0x24,0x34,0xE1,0x25,0xF1,0x17,0x18,0x19,0x1A,0x26, // (which is more efficient for AC coding)
+          0x27,0x28,0x29,0x2A,0x35,0x36,0x37,0x38,0x39,0x3A,0x43,0x44,0x45,0x46,0x47,0x48,0x49,0x4A,0x53,0x54,0x55,0x56,0x57,0x58,
+          0x59,0x5A,0x63,0x64,0x65,0x66,0x67,0x68,0x69,0x6A,0x73,0x74,0x75,0x76,0x77,0x78,0x79,0x7A,0x82,0x83,0x84,0x85,0x86,0x87,
+          0x88,0x89,0x8A,0x92,0x93,0x94,0x95,0x96,0x97,0x98,0x99,0x9A,0xA2,0xA3,0xA4,0xA5,0xA6,0xA7,0xA8,0xA9,0xAA,0xB2,0xB3,0xB4,
+          0xB5,0xB6,0xB7,0xB8,0xB9,0xBA,0xC2,0xC3,0xC4,0xC5,0xC6,0xC7,0xC8,0xC9,0xCA,0xD2,0xD3,0xD4,0xD5,0xD6,0xD7,0xD8,0xD9,0xDA,
+          0xE2,0xE3,0xE4,0xE5,0xE6,0xE7,0xE8,0xE9,0xEA,0xF2,0xF3,0xF4,0xF5,0xF6,0xF7,0xF8,0xF9,0xFA };
+const int16_t CodeWordLimit = 2048; // +/-2^11, maximum value after DCT
 
 void fillInBuf(void)
 {
@@ -2180,7 +2235,153 @@ uint8_t decodeNextMCU(int frame, int mode)
     return 0;
 }
 
-unsigned char pjpeg_decode_mcu(int frame, int mode)
+uint8_t decodeNextMCU3D(int frame, int mode)
+{   //mode 0 - getting coeffs mode 1 - setting coeffs
+    uint8_t status;
+    uint8_t mcuBlock;
+
+    if (gRestartInterval)
+    {
+        if (gRestartsLeft == 0)
+        {
+            status = processRestart();
+            if (status)
+                return status;
+        }
+        gRestartsLeft--;
+    }
+
+    for (mcuBlock = 0; mcuBlock < gMaxBlocksPerMCU; mcuBlock++) //6 razy dla H2V2
+    {
+
+        uint8_t componentID = gMCUOrg[mcuBlock];
+        uint8_t compQuant = gCompQuant[componentID];
+        uint8_t compDCTab = gCompDCTab[componentID];
+        uint8_t numExtraBits, compACTab;
+        const int16_t* pQ = compQuant ? gQuant1 : gQuant0;
+        uint16_t r, dc, k;
+
+        uint8_t s = huffDecode(compDCTab ? &gHuffTab1 : &gHuffTab0, compDCTab ? gHuffVal1 : gHuffVal0);
+
+        r = 0;
+        numExtraBits = s & 0xF;
+        if (numExtraBits)
+            r = getBits2(numExtraBits);
+        dc = huffExtend(r, s);
+
+        dc = dc + gLastDC[componentID];
+        gLastDC[componentID] = dc;
+
+        zigzagcoeffs[counter][0] = dc;
+
+        compACTab = gCompACTab[componentID];
+
+        if (gReduce)
+        {
+            // Decode, but throw out the AC coefficients in reduce mode.
+            for (k = 1; k < 64; k++)
+            {
+                s = huffDecode(compACTab ? &gHuffTab3 : &gHuffTab2, compACTab ? gHuffVal3 : gHuffVal2);
+
+                numExtraBits = s & 0xF;
+                if (numExtraBits)
+                    getBits2(numExtraBits);
+
+                r = s >> 4;
+                s &= 15;
+
+                if (s)
+                {
+                    if (r)
+                    {
+                        if ((k + r) > 63)
+                            return PJPG_DECODE_ERROR;
+
+                        k = (uint8_t)(k + r);
+                    }
+                }
+                else
+                {
+                    if (r == 15)
+                    {
+                        if ((k + 16) > 64)
+                            return PJPG_DECODE_ERROR;
+
+                        k += (16 - 1); // - 1 because the loop counter is k
+                    }
+                    else
+                        break;
+                }
+            }
+
+            //  transformBlockReduce(mcuBlock);
+        }
+        else
+        {
+            // Decode and dequantize AC coefficients
+            for (k = 1; k < 512; k++)
+            {
+                uint16_t extraBits;
+
+                s = huffDecode(compACTab ? &gHuffTab3 : &gHuffTab2, compACTab ? gHuffVal3 : gHuffVal2);
+
+                extraBits = 0;
+                numExtraBits = s & 0xF;
+                if (numExtraBits)
+                    extraBits = getBits2(numExtraBits);
+
+                r = s >> 4;
+                s &= 15;
+
+                if (s)
+                {
+                    int16_t ac;
+
+                    if (r)
+                    {
+                        if ((k + r) > 511)
+                           return PJPG_DECODE_ERROR;
+                        //  return (k+r);
+
+                        while (r)
+                        {
+                            zigzagcoeffs[counter][k++] = 0;
+                            r--;
+                        }
+                    }
+
+                    ac = huffExtend(extraBits, s);
+
+                    zigzagcoeffs[counter][k] = ac;
+                }
+                else
+                {
+                    if (r == 15)
+                    {
+                        if ((k + 16) > 512)
+                            return PJPG_DECODE_ERROR;
+
+                        for (r = 16; r > 0; r--) {
+                            zigzagcoeffs[counter][k++] = 0;
+                        }
+
+                        k--; // - 1 because the loop counter is k
+                    }
+                    else
+                        break;
+                }
+            }
+            while (k < 512) {
+                zigzagcoeffs[counter][k++] = 0;
+            }
+        }
+        counter++;
+    }
+
+    return 0;
+}
+
+unsigned char pjpeg_decode_mcu(int frame, int mode, int D3)
 {
     uint8_t status;
 
@@ -2190,7 +2391,10 @@ unsigned char pjpeg_decode_mcu(int frame, int mode)
     if ((!gNumMCUSRemainingX) && (!gNumMCUSRemainingY))
         return PJPG_NO_MORE_BLOCKS;
 
-    status = decodeNextMCU(frame, mode);
+    if(D3)
+        status = decodeNextMCU3D(frame, mode);
+    else
+        status = decodeNextMCU(frame, mode);
 
     if ((status) || (gCallbackStatus))
         return gCallbackStatus ? gCallbackStatus : status;
@@ -2206,7 +2410,7 @@ unsigned char pjpeg_decode_mcu(int frame, int mode)
     return 0;
 }
 
-uint8_t *pjpeg_load_from_file(const char *pFilename, int *x, int *y, int *comps, pjpeg_scan_type_t *pScan_type, int reduce, int frame, int mode) {
+uint8_t *pjpeg_load_from_file(const char *pFilename, int *x, int *y, int *comps, pjpeg_scan_type_t *pScan_type, int reduce, int frame, int mode, int D3) {
     pjpeg_image_info_t image_info;
     int mcu_x = 0;
     int mcu_y = 0;
@@ -2264,7 +2468,7 @@ uint8_t *pjpeg_load_from_file(const char *pFilename, int *x, int *y, int *comps,
     for (;;) {
         int y, x;
         uint8_t *pDst_row;
-        status = pjpeg_decode_mcu(frame, mode);
+        status = pjpeg_decode_mcu(frame, mode, D3);
 
         if (status) {
             if (status != PJPG_NO_MORE_BLOCKS) {
@@ -2378,6 +2582,381 @@ uint8_t *pjpeg_load_from_file(const char *pFilename, int *x, int *y, int *comps,
 
     return pImage;
 }
+
+//tooJPEGpart:
+
+std::ofstream myFile;
+
+void myOutput(unsigned char byte)
+{
+    myFile << byte;
+}
+
+typedef void (*WRITE_ONE_BYTE)(unsigned char);
+
+struct BitCode
+{
+    BitCode() = default; // undefined state, must be initialized at a later time
+    BitCode(uint16_t code_, uint8_t numBits_)
+            : code(code_), numBits(numBits_) {}
+    uint16_t code;       // JPEG's Huffman codes are limited to 16 bits
+    uint8_t  numBits;    // number of valid bits
+};
+
+struct BitWriter
+{
+    // user-supplied callback that writes/stores one byte
+    WRITE_ONE_BYTE output;
+    // initialize writer
+    explicit BitWriter(WRITE_ONE_BYTE output_) : output(output_) {}
+
+    // store the most recently encoded bits that are not written yet
+    struct BitBuffer
+    {
+        int32_t data    = 0; // actually only at most 24 bits are used
+        uint8_t numBits = 0; // number of valid bits (the right-most bits)
+    } buffer;
+
+    // write Huffman bits stored in BitCode, keep excess bits in BitBuffer
+    BitWriter& operator<<(const BitCode& data)
+    {
+        // append the new bits to those bits leftover from previous call(s)
+        buffer.numBits += data.numBits;
+        buffer.data   <<= data.numBits;
+        buffer.data    |= data.code;
+
+        // write all "full" bytes
+        while (buffer.numBits >= 8)
+        {
+            // extract highest 8 bits
+            buffer.numBits -= 8;
+            auto oneByte = uint8_t(buffer.data >> buffer.numBits);
+            output(oneByte);
+
+            if (oneByte == 0xFF) // 0xFF has a special meaning for JPEGs (it's a block marker)
+                output(0);         // therefore pad a zero to indicate "nope, this one ain't a marker, it's just a coincidence"
+
+            // note: I don't clear those written bits, therefore buffer.bits may contain garbage in the high bits
+            //       if you really want to "clean up" (e.g. for debugging purposes) then uncomment the following line
+            //buffer.bits &= (1 << buffer.numBits) - 1;
+        }
+        return *this;
+    }
+
+    // write all non-yet-written bits, fill gaps with 1s (that's a strange JPEG thing)
+    void flush()
+    {
+        // at most seven set bits needed to "fill" the last byte: 0x7F = binary 0111 1111
+        *this << BitCode(0x7F, 7); // I should set buffer.numBits = 0 but since there are no single bits written after flush() I can safely ignore it
+    }
+
+    // NOTE: all the following BitWriter functions IGNORE the BitBuffer and write straight to output !
+    // write a single byte
+    BitWriter& operator<<(uint8_t oneByte)
+    {
+        output(oneByte);
+        return *this;
+    }
+
+    // write an array of bytes
+    template <typename T, int Size>
+    BitWriter& operator<<(T (&manyBytes)[Size])
+    {
+        for (auto c : manyBytes)
+            output(c);
+        return *this;
+    }
+
+    // start a new JFIF block
+    void addMarker(uint8_t id, uint16_t length)
+    {
+        output(0xFF); output(id);     // ID, always preceded by 0xFF
+        output(uint8_t(length >> 8)); // length of the block (big-endian, includes the 2 length bytes as well)
+        output(uint8_t(length & 0xFF));
+    }
+};
+
+template <typename Number, typename Limit>
+Number clamp2(Number value, Limit minValue, Limit maxValue)
+{
+    if (value <= minValue) return minValue; // never smaller than the minimum
+    if (value >= maxValue) return maxValue; // never bigger  than the maximum
+    return value;                           // value was inside interval, keep it
+}
+
+void generateHuffmanTable(const uint8_t numCodes[16], const uint8_t* values, BitCode result[256])
+{
+    // process all bitsizes 1 thru 16, no JPEG Huffman code is allowed to exceed 16 bits
+    auto huffmanCode = 0;
+    for (auto numBits = 1; numBits <= 16; numBits++)
+    {
+        // ... and each code of these bitsizes
+        for (auto i = 0; i < numCodes[numBits - 1]; i++) // note: numCodes array starts at zero, but smallest bitsize is 1
+            result[*values++] = BitCode(huffmanCode++, numBits);
+
+        // next Huffman code needs to be one bit wider
+        huffmanCode <<= 1;
+    }
+}
+
+int16_t encodeBlock(BitWriter& writer, int index,const float scaled[8*8], int16_t lastDC,
+                    const BitCode huffmanDC[256], const BitCode huffmanAC[256], const BitCode* codewords)
+{
+
+    auto DC = zigzagcoeffs[index][0];
+
+    auto posNonZero = 0; // find last coefficient which is not zero (because trailing zeros are encoded differently)
+    for (auto i = 1; i < 512; i++) // start at 1 because block64[0]=DC was already processed
+    {
+        if (zigzagcoeffs[index][i] != 0)
+            posNonZero = i;
+    }
+
+    auto diff = DC - lastDC;
+
+    if (diff == 0)
+        writer << huffmanDC[0x00];   // yes, write a special short symbol
+    else
+    {
+        auto bits = codewords[diff]; // nope, encode the difference to previous block's average color
+        writer << huffmanDC[bits.numBits] << bits;
+    }
+
+    // encode ACs (quantized[1..63])
+    auto offset = 0; // upper 4 bits count the number of consecutive zeros
+    for (auto i = 1; i <= posNonZero; i++) // quantized[0] was already written, skip all trailing zeros, too
+    {
+        // zeros are encoded in a special way
+        while (zigzagcoeffs[index][i] == 0) // found another zero ?
+        {
+            offset    += 0x10; // add 1 to the upper 4 bits
+            // split into blocks of at most 16 consecutive zeros
+            if (offset > 0xF0) // remember, the counter is in the upper 4 bits, 0xF = 15
+            {
+                writer << huffmanAC[0xF0]; // 0xF0 is a special code for "16 zeros"
+                offset = 0;
+            }
+            i++;
+        }
+
+        auto encoded = codewords[zigzagcoeffs[index][i]];
+        // combine number of zeros with the number of bits of the next non-zero value
+        writer << huffmanAC[offset + encoded.numBits] << encoded; // and the value itself
+        offset = 0;
+    }
+
+    // send end-of-block code (0x00), only needed if there are trailing zeros
+    if (posNonZero < 512 - 1) // = 511
+        writer << huffmanAC[0x00];
+
+    return DC;
+}
+
+namespace TooJpeg
+{
+    bool writeJpeg(WRITE_ONE_BYTE output, unsigned short width, unsigned short height,
+                   bool isRGB, unsigned char quality_, bool downsample)
+    {
+
+        const auto numComponents = isRGB ? 3 : 1;
+
+        BitWriter bitWriter(output);
+
+        // ////////////////////////////////////////
+        // JFIF headers
+        const uint8_t HeaderJfif[2+2+16] =
+                { 0xFF,0xD8,         // SOI marker (start of image)
+                  0xFF,0xE0,         // JFIF APP0 tag
+                  0,16,              // length: 16 bytes (14 bytes payload + 2 bytes for this length field)
+                  'J','F','I','F',0, // JFIF identifier, zero-terminated
+                  1,1,               // JFIF version 1.1
+                  0,                 // no density units specified
+                  0,1,0,1,           // density: 1 pixel "per pixel" horizontally and vertically
+                  0,0 };             // no thumbnail (size 0 x 0)
+        bitWriter << HeaderJfif;
+
+        // ////////////////////////////////////////
+        // adjust quantization tables to desired quality
+
+        // quality level must be in 1 ... 100
+        auto quality = clamp2<uint16_t>(quality_, 1, 100);
+        // convert to an internal JPEG quality factor, formula taken from libjpeg
+        quality = quality < 50 ? 5000 / quality : 200 - quality * 2;
+
+        uint8_t quantLuminance  [8*8];
+        uint8_t quantChrominance[8*8];
+        for (auto i = 0; i < 8*8; i++)
+        {
+            int luminance   = (DefaultQuantLuminance  [ZigZagInv[i]] * quality + 50) / 100;
+            int chrominance = (DefaultQuantChrominance[ZigZagInv[i]] * quality + 50) / 100;
+
+            // clamp to 1..255
+            quantLuminance  [i] = clamp2(luminance,   1, 255);
+            quantChrominance[i] = clamp2(chrominance, 1, 255);
+        }
+
+        // write quantization tables
+        bitWriter.addMarker(0xDB, 2 + (isRGB ? 2 : 1) * (1 + 8*8)); // length: 65 bytes per table + 2 bytes for this length field
+        // each table has 64 entries and is preceded by an ID byte
+
+        bitWriter   << 0x00 << quantLuminance;   // first  quantization table
+        if (isRGB)
+            bitWriter << 0x01 << quantChrominance; // second quantization table, only relevant for color images
+
+        // ////////////////////////////////////////
+        // write image infos (SOF0 - start of frame)
+        bitWriter.addMarker(0xC0, 2+6+3*numComponents); // length: 6 bytes general info + 3 per channel + 2 bytes for this length field
+
+        // 8 bits per channel
+        bitWriter << 0x08
+                  // image dimensions (big-endian)
+                  << (height >> 8) << (height & 0xFF)
+                  << (width  >> 8) << (width  & 0xFF);
+
+        // sampling and quantization tables for each component
+        bitWriter << numComponents;       // 1 component (grayscale, Y only) or 3 components (Y,Cb,Cr)
+        for (auto id = 1; id <= numComponents; id++)
+            bitWriter <<  id                // component ID (Y=1, Cb=2, Cr=3)
+                      // bitmasks for sampling: highest 4 bits: horizontal, lowest 4 bits: vertical
+                      << (id == 1 && downsample ? 0x22 : 0x11) // 0x11 is default YCbCr 4:4:4 and 0x22 stands for YCbCr 4:2:0
+                      << (id == 1 ? 0 : 1); // use quantization table 0 for Y, table 1 for Cb and Cr
+
+
+        bitWriter.addMarker(0xC4, isRGB ? (2+208+208) : (2+208));
+
+        // store luminance's DC+AC Huffman table definitions
+        bitWriter << 0x00 // highest 4 bits: 0 => DC, lowest 4 bits: 0 => Y (baseline)
+                  << DcLuminanceCodesPerBitsize
+                  << DcLuminanceValues;
+        bitWriter << 0x10 // highest 4 bits: 1 => AC, lowest 4 bits: 0 => Y (baseline)
+                  << AcLuminanceCodesPerBitsize
+                  << AcLuminanceValues;
+
+        // compute actual Huffman code tables (see Jon's code for precalculated tables)
+        BitCode huffmanLuminanceDC[256];
+        BitCode huffmanLuminanceAC[256];
+        generateHuffmanTable(DcLuminanceCodesPerBitsize, DcLuminanceValues, huffmanLuminanceDC);
+        generateHuffmanTable(AcLuminanceCodesPerBitsize, AcLuminanceValues, huffmanLuminanceAC);
+
+        // chrominance is only relevant for color images
+        BitCode huffmanChrominanceDC[256];
+        BitCode huffmanChrominanceAC[256];
+        if (isRGB)
+        {
+            // store luminance's DC+AC Huffman table definitions
+            bitWriter << 0x01 // highest 4 bits: 0 => DC, lowest 4 bits: 1 => Cr,Cb (baseline)
+                      << DcChrominanceCodesPerBitsize
+                      << DcChrominanceValues;
+            bitWriter << 0x11 // highest 4 bits: 1 => AC, lowest 4 bits: 1 => Cr,Cb (baseline)
+                      << AcChrominanceCodesPerBitsize
+                      << AcChrominanceValues;
+
+            // compute actual Huffman code tables (see Jon's code for precalculated tables)
+            generateHuffmanTable(DcChrominanceCodesPerBitsize, DcChrominanceValues, huffmanChrominanceDC);
+            generateHuffmanTable(AcChrominanceCodesPerBitsize, AcChrominanceValues, huffmanChrominanceAC);
+        }
+
+        // ////////////////////////////////////////
+        // start of scan (there is only a single scan for baseline JPEGs)
+        bitWriter.addMarker(0xDA, 2+1+2*numComponents+3); // 2 bytes for the length field, 1 byte for number of components,
+        // then 2 bytes for each component and 3 bytes for spectral selection
+
+        // assign Huffman tables to each component
+        bitWriter << numComponents;
+        for (auto id = 1; id <= numComponents; id++)
+            // highest 4 bits: DC Huffman table, lowest 4 bits: AC Huffman table
+            bitWriter << id << (id == 1 ? 0x00 : 0x11); // Y: tables 0 for DC and AC; Cb + Cr: tables 1 for DC and AC
+
+        // constant values for our baseline JPEGs (which have a single sequential scan)
+        static const uint8_t Spectral[3] = { 0, 63, 0 }; // spectral selection: must be from 0 to 63; successive approximation must be 0
+        bitWriter << Spectral;
+
+        // ////////////////////////////////////////
+        // adjust quantization tables with AAN scaling factors to simplify DCT
+        float scaledLuminance  [8*8];
+        float scaledChrominance[8*8];
+        for (auto i = 0; i < 8*8; i++)
+        {
+            auto row    = ZigZagInv[i] / 8; // same as ZigZagInv[i] >> 3
+            auto column = ZigZagInv[i] % 8; // same as ZigZagInv[i] &  7
+
+            // scaling constants for AAN DCT algorithm: AanScaleFactors[0] = 1, AanScaleFactors[k=1..7] = cos(k*PI/16) * sqrt(2)
+            static const float AanScaleFactors[8] = { 1, 1.387039845f, 1.306562965f, 1.175875602f, 1, 0.785694958f, 0.541196100f, 0.275899379f };
+            auto factor = 1 / (AanScaleFactors[row] * AanScaleFactors[column] * 8);
+            scaledLuminance  [ZigZagInv[i]] = factor / quantLuminance  [i];
+            scaledChrominance[ZigZagInv[i]] = factor / quantChrominance[i];
+            // if you really want JPEGs that are bitwise identical to Jon Olick's code then you need slightly different formulas (note: sqrt(8) = 2.828427125f)
+            //static const float aasf[] = { 1.0f * 2.828427125f, 1.387039845f * 2.828427125f, 1.306562965f * 2.828427125f, 1.175875602f * 2.828427125f, 1.0f * 2.828427125f, 0.785694958f * 2.828427125f, 0.541196100f * 2.828427125f, 0.275899379f * 2.828427125f }; // line 240 of jo_jpeg.cpp
+            //scaledLuminance  [ZigZagInv[i]] = 1 / (quantLuminance  [i] * aasf[row] * aasf[column]); // lines 266-267 of jo_jpeg.cpp
+            //scaledChrominance[ZigZagInv[i]] = 1 / (quantChrominance[i] * aasf[row] * aasf[column]);
+        }
+
+        // ////////////////////////////////////////
+        // precompute JPEG codewords for quantized DCT
+        BitCode  codewordsArray[2 * CodeWordLimit];          // note: quantized[i] is found at codewordsArray[quantized[i] + CodeWordLimit]
+        BitCode* codewords = &codewordsArray[CodeWordLimit]; // allow negative indices, so quantized[i] is at codewords[quantized[i]]
+        uint8_t numBits = 1; // each codeword has at least one bit (value == 0 is undefined)
+        int32_t mask    = 1; // mask is always 2^numBits - 1, initial value 2^1-1 = 2-1 = 1
+        for (int16_t value = 1; value < CodeWordLimit; value++)
+        {
+            // numBits = position of highest set bit (ignoring the sign)
+            // mask    = (2^numBits) - 1
+            if (value > mask) // one more bit ?
+            {
+                numBits++;
+                mask = (mask << 1) | 1; // append a set bit
+            }
+            codewords[-value] = BitCode(mask - value, numBits); // note that I use a negative index => codewords[-value] = codewordsArray[CodeWordLimit  value]
+            codewords[+value] = BitCode(       value, numBits);
+        }
+
+
+        // the next two variables are frequently used when checking for image borders
+        const auto maxWidth  = width  - 1; // "last row"
+        const auto maxHeight = height - 1; // "bottom line"
+
+        // process MCUs (minimum codes units) => image is subdivided into a grid of 8x8 or 16x16 tiles
+        const auto sampling = downsample ? 2 : 1; // 1x1 or 2x2 sampling
+        const auto mcuSize  = 8 * sampling;
+
+
+        // average color of the previous MCU
+        int16_t lastYDC = 0, lastCbDC = 0, lastCrDC = 0;
+        // convert from RGB to YCbCr
+        float Y[8][8], Cb[8][8], Cr[8][8];
+/*
+        for (auto mcuY = 0; mcuY < height; mcuY += mcuSize) // each step is either 8 or 16 (=mcuSize)
+            for (auto mcuX = 0; mcuX < width; mcuX += mcuSize)
+            {
+                for (auto blockY = 0; blockY < mcuSize; blockY += 8)
+                    for (auto blockX = 0; blockX < mcuSize; blockX += 8)
+                    {
+                        lastYDC = encodeBlock(bitWriter, scaledLuminance, lastYDC, huffmanLuminanceDC, huffmanLuminanceAC, codewords);
+                    }
+                lastCbDC = encodeBlock(bitWriter, scaledChrominance, lastCbDC, huffmanChrominanceDC, huffmanChrominanceAC, codewords);
+                lastCrDC = encodeBlock(bitWriter, scaledChrominance, lastCrDC, huffmanChrominanceDC, huffmanChrominanceAC, codewords);
+            }
+*/
+        for(int i = 0; i < (number_of_coeffs/(64*6)); i++)
+        {
+            for(int j = 0; j < 4; j++)
+            {
+                lastYDC = encodeBlock(bitWriter, (i*6)+j,scaledLuminance, lastYDC, huffmanLuminanceDC, huffmanLuminanceAC, codewords);
+            }
+            lastCbDC = encodeBlock(bitWriter, (i*6)+4,scaledChrominance, lastCbDC, huffmanChrominanceDC, huffmanChrominanceAC, codewords);
+            lastCrDC = encodeBlock(bitWriter, (i*6)+5,scaledChrominance, lastCrDC, huffmanChrominanceDC, huffmanChrominanceAC, codewords);
+        }
+
+        bitWriter.flush(); // now image is completely encoded, write any bits still left in the buffer
+
+        // ///////////////////////////
+        // EOI marker
+        bitWriter << 0xFF << 0xD9; // this marker has no length, therefore I can't use addMarker()
+        return true;
+    }
+}
+
+//mypart:
 
 void DCT(float block[8], uint8_t stride = 1) // stride must be 1 (=horizontal) or 8 (=vertical)
 {
@@ -2506,7 +3085,7 @@ void DCT_function()
         DCT(block);
         for(int j = 0; j < 8; j++)
         {
-            coeffs[j][i] = nearbyint(block[j]);
+            coeffs[j][i] = nearbyint(block[j]/1.0);
         }
     }
 }
@@ -2524,7 +3103,7 @@ void IDCT_function()
         IDCT(block);
         for(int j = 0; j < 8; j++)
         {
-            coeffs[j][i] = nearbyint(block[j]/8.0);
+            coeffs[j][i] = nearbyint(block[j]/8.0*1.0);
         }
     }
 }
@@ -2680,7 +3259,7 @@ int main() {
         string x = "klatki/frame"+to_string(i)+".jpg";
         pSrc_filename = x.c_str();
 
-        pImage = pjpeg_load_from_file(pSrc_filename, &width, &height, &comps, &scan_type, reduce, i, 0);
+        pImage = pjpeg_load_from_file(pSrc_filename, &width, &height, &comps, &scan_type, reduce, i, 0, 0);
         if (!pImage) {
             printf("Failed loading source image!\n");
             return EXIT_FAILURE;
@@ -2689,14 +3268,29 @@ int main() {
 
     DCT_function();
     zizgzag_function();
-
+/*
     FILE * file = fopen("coeffs", "wb");
     RLC_encode(file);
     fclose(file);
 
+*/
+
+    myFile.open("block.jpg", std::ios_base::out | std::ios_base::binary);
+    uint8_t quality = 100;
+    const auto bytesPerPixel = 3;
+    const bool isRGB = true;
+    const bool downsample = true;
+
+    auto ok = TooJpeg::writeJpeg(myOutput, width, height, isRGB, quality, downsample);
+
+    counter = 0;
+    pImage = pjpeg_load_from_file("block.jpg", &width, &height, &comps, &scan_type, reduce, 0, 0, 1);
+
+/*
     file = fopen("coeffs", "rb");
     RLC_decode(file);
     fclose(file);
+*/
 
     izigzag_function();
     IDCT_function();
@@ -2706,7 +3300,7 @@ int main() {
         string x = "klatki/frame"+to_string(i)+".jpg";
         pSrc_filename = x.c_str();
 
-        pImage = pjpeg_load_from_file(pSrc_filename, &width, &height, &comps, &scan_type, reduce, i, 1);
+        pImage = pjpeg_load_from_file(pSrc_filename, &width, &height, &comps, &scan_type, reduce, i, 1, 0);
         if (!pImage) {
             printf("Failed loading source image!\n");
             return EXIT_FAILURE;
