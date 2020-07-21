@@ -3085,7 +3085,7 @@ void DCT_function()
         DCT(block);
         for(int j = 0; j < 8; j++)
         {
-            coeffs[j][i] = nearbyint(block[j]/1.0);
+            coeffs[j][i] = nearbyint(block[j]/10.0);
         }
     }
 }
@@ -3103,7 +3103,7 @@ void IDCT_function()
         IDCT(block);
         for(int j = 0; j < 8; j++)
         {
-            coeffs[j][i] = nearbyint(block[j]/8.0*1.0);
+            coeffs[j][i] = nearbyint(block[j]/8.0*10.0);
         }
     }
 }
@@ -3253,68 +3253,79 @@ int main() {
     uint8_t *pImage;
     int reduce = 0;
 
-    for(int i = 0; i < 8; i++)
+    for(int j = 0; j < 50; j++)
     {
-        counter = 0;
-        string x = "klatki/frame"+to_string(i)+".jpg";
-        pSrc_filename = x.c_str();
+        cout<<"Frame nr "<<j*8<<endl;
+        for (int i = 0; i < 8; i++) {
+            counter = 0;
+            string x = "klatki/frame" + to_string((i+1)+(j*8)) + ".jpg";
+            pSrc_filename = x.c_str();
 
-        pImage = pjpeg_load_from_file(pSrc_filename, &width, &height, &comps, &scan_type, reduce, i, 0, 0);
-        if (!pImage) {
-            printf("Failed loading source image!\n");
-            return EXIT_FAILURE;
+            pImage = pjpeg_load_from_file(pSrc_filename, &width, &height, &comps, &scan_type, reduce, i, 0, 0);
+            if (!pImage) {
+                printf("Failed loading source image!\n");
+                return EXIT_FAILURE;
+            }
+        }
+
+        DCT_function();
+        zizgzag_function();
+        /*
+            FILE * file = fopen("coeffs", "wb");
+            RLC_encode(file);
+            fclose(file);
+
+        */
+
+        myFile.open("block.jpg", std::ios_base::out | std::ios_base::binary);
+        uint8_t quality = 100;
+        const auto bytesPerPixel = 3;
+        const bool isRGB = true;
+        const bool downsample = true;
+
+        auto ok = TooJpeg::writeJpeg(myOutput, width, height, isRGB, quality, downsample);
+
+        myFile.close();
+
+        counter = 0;
+        pImage = pjpeg_load_from_file("block.jpg", &width, &height, &comps, &scan_type, reduce, 0, 0, 1);
+
+        /*
+            file = fopen("coeffs", "rb");
+            RLC_decode(file);
+            fclose(file);
+        */
+
+        izigzag_function();
+        IDCT_function();
+
+        for (int i = 0; i < 8; i++) {
+            counter = 0;
+            string x = "klatki/frame" + to_string((i+1)+(j*8)) + ".jpg";
+            pSrc_filename = x.c_str();
+
+            pImage = pjpeg_load_from_file(pSrc_filename, &width, &height, &comps, &scan_type, reduce, i, 1, 0);
+            if (!pImage) {
+                printf("Failed loading source image!\n");
+                return EXIT_FAILURE;
+            }
+
+            string tempzeros = "";
+            if((i+1)+(j*8) < 10)
+                tempzeros = "0";
+
+            if((i+1)+(j*8) < 100)
+                tempzeros = tempzeros+"0";
+
+            string y = "zdekodowane_klatki/decoded" +tempzeros+ to_string((i+1)+(j*8)) + ".bmp";
+            pDst_filename = y.c_str();
+
+
+            if (!stbi_write_bmp(pDst_filename, width, height, comps, pImage)) {
+                printf("Failed writing image to destination file!\n");
+                return EXIT_FAILURE;
+            }
         }
     }
-
-    DCT_function();
-    zizgzag_function();
-/*
-    FILE * file = fopen("coeffs", "wb");
-    RLC_encode(file);
-    fclose(file);
-
-*/
-
-    myFile.open("block.jpg", std::ios_base::out | std::ios_base::binary);
-    uint8_t quality = 100;
-    const auto bytesPerPixel = 3;
-    const bool isRGB = true;
-    const bool downsample = true;
-
-    auto ok = TooJpeg::writeJpeg(myOutput, width, height, isRGB, quality, downsample);
-
-    counter = 0;
-    pImage = pjpeg_load_from_file("block.jpg", &width, &height, &comps, &scan_type, reduce, 0, 0, 1);
-
-/*
-    file = fopen("coeffs", "rb");
-    RLC_decode(file);
-    fclose(file);
-*/
-
-    izigzag_function();
-    IDCT_function();
-
-    for(int i = 0; i < 8; i++) {
-        counter = 0;
-        string x = "klatki/frame"+to_string(i)+".jpg";
-        pSrc_filename = x.c_str();
-
-        pImage = pjpeg_load_from_file(pSrc_filename, &width, &height, &comps, &scan_type, reduce, i, 1, 0);
-        if (!pImage) {
-            printf("Failed loading source image!\n");
-            return EXIT_FAILURE;
-        }
-
-        string y = "klatki/decoded"+to_string(i)+".bmp";
-        pDst_filename = y.c_str();
-
-        if (!stbi_write_bmp(pDst_filename, width, height, comps, pImage))
-        {
-            printf("Failed writing image to destination file!\n");
-            return EXIT_FAILURE;
-        }
-    }
-
     return 0;
 }
