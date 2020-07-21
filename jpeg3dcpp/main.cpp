@@ -2602,12 +2602,12 @@ int16_t RLC_encode_block(int16_t lastDC, int nr_block, FILE * file)
     }
     if(zeros > 0)
     {
-        buf[0] = 0;
+        buf[0] = -69;
         fwrite(buf, sizeof(int16_t), 1, file);
-        fwrite(buf, sizeof(int16_t), 1, file);
+       // fwrite(buf, sizeof(int16_t), 1, file);
     }
 
-    return lastDC;
+    return DC;
 }
 
 void RLC_encode(FILE * file)
@@ -2622,7 +2622,7 @@ void RLC_encode(FILE * file)
 void RLC_decode(FILE * file)
 {
     int16_t lastDC = 0;
-    int16_t buf[2];
+    int16_t buf[1];
 
     for(int i = 0; i < (number_of_coeffs/64); i++)
     {
@@ -2637,9 +2637,10 @@ void RLC_decode(FILE * file)
             if(l == 512)
                 break;
 
-            fread(buf, sizeof(int16_t), 2, file);
+            fread(buf, sizeof(int16_t), 1, file);
 
-            if(buf[0] == 0 and buf[1] == 0)
+           // if(buf[0] == 0 and buf[1] == 0)
+            if(buf[0] == -69)
             {
                 for(int j = l; j < 512; j++)
                 {
@@ -2654,7 +2655,8 @@ void RLC_decode(FILE * file)
                     zigzagcoeffs[i][j] = 0;
                     l++;
                 }
-                zigzagcoeffs[i][l] = buf[1];
+                fread(buf, sizeof(int16_t), 1, file);
+                zigzagcoeffs[i][l] = buf[0];
                 l++;
             }
         }
