@@ -3256,18 +3256,18 @@ int main(int argc, char *argv[]) {
     int reduce = 0;
 
     string input_dir = argv[1];
-    int j = (atoi(argv[2]))/8;
-    int frames = (atoi(argv[3])/8) + j;
+    int j = atoi(argv[2]);
+    int frames = atoi(argv[3]) + j;
     string output_dir = argv[4];
     level = atof(argv[5]);
 
 
-    for(j; j < frames; j++)
+    for(j; j < frames; j=j+8)
     {
-        cout<<"Frame nr "<<j*8<<endl;
+        cout<<"Frame nr "<<j<<endl;
         for (int i = 0; i < 8; i++) {
             counter = 0;
-            string x = input_dir+"/frame" + to_string((i+1)+(j*8)) + ".jpg";
+            string x = input_dir+"/frame" + to_string(i+j) + ".jpg";
             pSrc_filename = x.c_str();
 
             pImage = pjpeg_load_from_file(pSrc_filename, &width, &height, &comps, &scan_type, reduce, i, 0, 0);
@@ -3310,7 +3310,7 @@ int main(int argc, char *argv[]) {
 
         for (int i = 0; i < 8; i++) {
             counter = 0;
-            string x = input_dir+"/frame" + to_string((i+1)+(j*8)) + ".jpg";
+            string x = input_dir+"/frame" + to_string(i+j) + ".jpg";
             pSrc_filename = x.c_str();
 
             pImage = pjpeg_load_from_file(pSrc_filename, &width, &height, &comps, &scan_type, reduce, i, 1, 0);
@@ -3320,7 +3320,7 @@ int main(int argc, char *argv[]) {
             }
 
             string tempzeros = "";
-            if((i+1)+(j*8)-9000 < 10)
+            /*if((i+1)+(j*8)-9000 < 10)
                 tempzeros = "0";
 
             if((i+1)+(j*8)-9000 < 100)
@@ -3328,8 +3328,8 @@ int main(int argc, char *argv[]) {
 
             if((i+1)+(j*8)-9000 < 1000)
                 tempzeros = tempzeros+"0";
-
-            string y = output_dir+"/decoded" +tempzeros+ to_string((i+1)+(j*8)-9000) + ".bmp";
+            */
+            string y = output_dir+"/decoded" +tempzeros+ to_string(i+j-atoi(argv[2])) + ".bmp";
             pDst_filename = y.c_str();
 
 
