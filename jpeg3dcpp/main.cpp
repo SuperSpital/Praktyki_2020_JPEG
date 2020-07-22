@@ -3155,7 +3155,7 @@ void izigzag_function()
         }
     }
 }
-
+/* Nieużywane funkcje
 int16_t RLC_encode_block(int16_t lastDC, int nr_block, FILE * file)
 {
     int16_t buf[1];
@@ -3244,7 +3244,7 @@ void RLC_decode(FILE * file)
         }
     }
 }
-
+*/
 int main(int argc, char *argv[]) {
 
     int n = 1;
@@ -3279,12 +3279,6 @@ int main(int argc, char *argv[]) {
 
         DCT_function();
         zizgzag_function();
-        /*
-            FILE * file = fopen("coeffs", "wb");
-            RLC_encode(file);
-            fclose(file);
-
-        */
 
         myFile.open("block.jpg", std::ios_base::out | std::ios_base::binary);
         uint8_t quality = 100;
@@ -3298,12 +3292,6 @@ int main(int argc, char *argv[]) {
 
         counter = 0;
         pImage = pjpeg_load_from_file("block.jpg", &width, &height, &comps, &scan_type, reduce, 0, 0, 1);
-
-        /*
-            file = fopen("coeffs", "rb");
-            RLC_decode(file);
-            fclose(file);
-        */
 
         izigzag_function();
         IDCT_function();
