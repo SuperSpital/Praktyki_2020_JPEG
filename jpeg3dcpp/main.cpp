@@ -406,6 +406,7 @@ int Z[] = {1, 2, 1, 1, 1, 1, 2, 1, 2, 3, 4, 3, 2, 1, 3, 2, 1, 2, 1, 1, 1, 1, 2, 
            8, 7, 6, 8, 7, 6, 5, 8, 7, 6, 5, 4, 5, 6, 7, 8, 6, 7, 8, 7, 8, 8, 8, 8, 7, 8, 7, 6, 7, 8, 8, 8};
 
 int16_t zigzagcoeffs[48960][512];
+float level = 1.0;
 
 const uint8_t ZigZagInv[8*8] =
         {  0, 1, 8,16, 9, 2, 3,10,   // ZigZag[] =  0, 1, 5, 6,14,15,27,28,
@@ -461,6 +462,7 @@ const uint8_t AcChrominanceValues        [162] =                                
           0xB5,0xB6,0xB7,0xB8,0xB9,0xBA,0xC2,0xC3,0xC4,0xC5,0xC6,0xC7,0xC8,0xC9,0xCA,0xD2,0xD3,0xD4,0xD5,0xD6,0xD7,0xD8,0xD9,0xDA,
           0xE2,0xE3,0xE4,0xE5,0xE6,0xE7,0xE8,0xE9,0xEA,0xF2,0xF3,0xF4,0xF5,0xF6,0xF7,0xF8,0xF9,0xFA };
 const int16_t CodeWordLimit = 2048; // +/-2^11, maximum value after DCT
+
 
 void fillInBuf(void)
 {
@@ -3085,7 +3087,7 @@ void DCT_function()
         DCT(block);
         for(int j = 0; j < 8; j++)
         {
-            coeffs[j][i] = nearbyint(block[j]/10.0);
+            coeffs[j][i] = nearbyint(block[j]/level);
         }
     }
 }
@@ -3103,7 +3105,7 @@ void IDCT_function()
         IDCT(block);
         for(int j = 0; j < 8; j++)
         {
-            coeffs[j][i] = nearbyint(block[j]/8.0*10.0);
+            coeffs[j][i] = nearbyint(block[j]/8.0*level);
         }
     }
 }
@@ -3243,7 +3245,7 @@ void RLC_decode(FILE * file)
     }
 }
 
-int main() {
+int main(int argc, char *argv[]) {
 
     int n = 1;
     const char *pSrc_filename;
@@ -3253,12 +3255,19 @@ int main() {
     uint8_t *pImage;
     int reduce = 0;
 
-    for(int j = 0; j < 50; j++)
+    string input_dir = argv[1];
+    int j = (atoi(argv[2]))/8;
+    int frames = (atoi(argv[3])/8) + j;
+    string output_dir = argv[4];
+    level = atof(argv[5]);
+
+
+    for(j; j < frames; j++)
     {
         cout<<"Frame nr "<<j*8<<endl;
         for (int i = 0; i < 8; i++) {
             counter = 0;
-            string x = "klatki/frame" + to_string((i+1)+(j*8)) + ".jpg";
+            string x = input_dir+"/frame" + to_string((i+1)+(j*8)) + ".jpg";
             pSrc_filename = x.c_str();
 
             pImage = pjpeg_load_from_file(pSrc_filename, &width, &height, &comps, &scan_type, reduce, i, 0, 0);
@@ -3301,7 +3310,7 @@ int main() {
 
         for (int i = 0; i < 8; i++) {
             counter = 0;
-            string x = "klatki/frame" + to_string((i+1)+(j*8)) + ".jpg";
+            string x = input_dir+"/frame" + to_string((i+1)+(j*8)) + ".jpg";
             pSrc_filename = x.c_str();
 
             pImage = pjpeg_load_from_file(pSrc_filename, &width, &height, &comps, &scan_type, reduce, i, 1, 0);
@@ -3311,13 +3320,16 @@ int main() {
             }
 
             string tempzeros = "";
-            if((i+1)+(j*8) < 10)
+            if((i+1)+(j*8)-9000 < 10)
                 tempzeros = "0";
 
-            if((i+1)+(j*8) < 100)
+            if((i+1)+(j*8)-9000 < 100)
                 tempzeros = tempzeros+"0";
 
-            string y = "zdekodowane_klatki/decoded" +tempzeros+ to_string((i+1)+(j*8)) + ".bmp";
+            if((i+1)+(j*8)-9000 < 1000)
+                tempzeros = tempzeros+"0";
+
+            string y = output_dir+"/decoded" +tempzeros+ to_string((i+1)+(j*8)-9000) + ".bmp";
             pDst_filename = y.c_str();
 
 
