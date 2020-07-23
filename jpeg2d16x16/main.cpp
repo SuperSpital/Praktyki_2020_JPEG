@@ -1,6 +1,7 @@
 #include <iostream>
 #include <cmath>
 #include <fstream>
+#include <nmmintrin.h>
 
 #include "stb_image.c"
 
@@ -406,7 +407,8 @@ int Z[] = {1, 2, 1, 1, 1, 1, 2, 1, 2, 3, 4, 3, 2, 1, 3, 2, 1, 2, 1, 1, 1, 1, 2, 
            8, 7, 6, 8, 7, 6, 5, 8, 7, 6, 5, 4, 5, 6, 7, 8, 6, 7, 8, 7, 8, 8, 8, 8, 7, 8, 7, 6, 7, 8, 8, 8};
 
 int16_t zigzagcoeffs[48960][512];
-float level = 1.0;
+float level_Y = 1.0;
+float level_C = 1.0;
 
 float skalars1[] = {0.63764, 0.42234, 0.082721, 0.034065, 0.017667, 0.0099847, 0.0055557, 0.0025099};
 float skalars2[] = {0.21531, 0.77023, 0.53912, 0.13445, 0.061717, 0.033207, 0.018050, 0.0080656};
@@ -1945,8 +1947,17 @@ void upsampleCrV(uint8_t srcOfs, uint8_t dstOfs)
 
 void transformBlock(uint8_t mcuBlock)
 {
-    idctRows();
-    idctCols();
+
+
+    if(mcuBlock > 3) {
+        idctRows();
+        idctCols();
+    }
+
+    for(int i = 0; i < 64; i++)
+        cout<<gCoeffBuf[i]<<" ";
+    cout<<endl;
+    system("PAUSE");
 
     switch (gScanType)
     {
@@ -2272,7 +2283,7 @@ uint8_t decodeNextMCU(int frame, int mode)
 
             if(mode)
             {
-                transformBlock(mcuBlock);
+                    transformBlock(mcuBlock);
             }
             else {
 
@@ -2303,7 +2314,7 @@ uint8_t decodeNextMCU3D(int frame, int mode)
         gRestartsLeft--;
     }
 
-    for (mcuBlock = 0; mcuBlock < gMaxBlocksPerMCU; mcuBlock++) //6 razy dla H2V2
+    for (mcuBlock = 0; mcuBlock < 1; mcuBlock++)
     {
 
         uint8_t componentID = gMCUOrg[mcuBlock];
@@ -2324,7 +2335,7 @@ uint8_t decodeNextMCU3D(int frame, int mode)
         dc = dc + gLastDC[componentID];
         gLastDC[componentID] = dc;
 
-        zigzagcoeffs[counter][0] = dc;
+        zigzagcoeffs[0][0] = dc;
 
         compACTab = gCompACTab[componentID];
 
@@ -2371,7 +2382,7 @@ uint8_t decodeNextMCU3D(int frame, int mode)
         else
         {
             // Decode and dequantize AC coefficients
-            for (k = 1; k < 512; k++)
+            for (k = 1; k < 256; k++)
             {
                 uint16_t extraBits;
 
@@ -2391,30 +2402,30 @@ uint8_t decodeNextMCU3D(int frame, int mode)
 
                     if (r)
                     {
-                        if ((k + r) > 511)
+                        if ((k + r) > 255)
                             return PJPG_DECODE_ERROR;
                         //  return (k+r);
 
                         while (r)
                         {
-                            zigzagcoeffs[counter][k++] = 0;
+                            zigzagcoeffs[0][k++] = 0;
                             r--;
                         }
                     }
 
                     ac = huffExtend(extraBits, s);
 
-                    zigzagcoeffs[counter][k] = ac;
+                    zigzagcoeffs[0][k] = ac;
                 }
                 else
                 {
                     if (r == 15)
                     {
-                        if ((k + 16) > 512)
+                        if ((k + 16) > 256)
                             return PJPG_DECODE_ERROR;
 
                         for (r = 16; r > 0; r--) {
-                            zigzagcoeffs[counter][k++] = 0;
+                            zigzagcoeffs[0][k++] = 0;
                         }
 
                         k--; // - 1 because the loop counter is k
@@ -2423,13 +2434,137 @@ uint8_t decodeNextMCU3D(int frame, int mode)
                         break;
                 }
             }
-            while (k < 512) {
-                zigzagcoeffs[counter][k++] = 0;
+            while (k < 256) {
+                zigzagcoeffs[0][k++] = 0;
             }
         }
+    }
+    for(int i = 0; i < 256; i++)
+    {
+        coeffs[0][counter] = zigzagcoeffs[0][i];
         counter++;
     }
+    for (mcuBlock = 4; mcuBlock < 6; mcuBlock++)
+    {
 
+        uint8_t componentID = gMCUOrg[mcuBlock];
+        uint8_t compQuant = gCompQuant[componentID];
+        uint8_t compDCTab = gCompDCTab[componentID];
+        uint8_t numExtraBits, compACTab;
+        const int16_t* pQ = compQuant ? gQuant1 : gQuant0;
+        uint16_t r, dc, k;
+
+        uint8_t s = huffDecode(compDCTab ? &gHuffTab1 : &gHuffTab0, compDCTab ? gHuffVal1 : gHuffVal0);
+
+        r = 0;
+        numExtraBits = s & 0xF;
+        if (numExtraBits)
+            r = getBits2(numExtraBits);
+        dc = huffExtend(r, s);
+
+        dc = dc + gLastDC[componentID];
+        gLastDC[componentID] = dc;
+
+        zigzagcoeffs[0][0] = dc;
+
+        compACTab = gCompACTab[componentID];
+
+        if (gReduce)
+        {
+            // Decode, but throw out the AC coefficients in reduce mode.
+            for (k = 1; k < 64; k++)
+            {
+                s = huffDecode(compACTab ? &gHuffTab3 : &gHuffTab2, compACTab ? gHuffVal3 : gHuffVal2);
+
+                numExtraBits = s & 0xF;
+                if (numExtraBits)
+                    getBits2(numExtraBits);
+
+                r = s >> 4;
+                s &= 15;
+
+                if (s)
+                {
+                    if (r)
+                    {
+                        if ((k + r) > 63)
+                            return PJPG_DECODE_ERROR;
+
+                        k = (uint8_t)(k + r);
+                    }
+                }
+                else
+                {
+                    if (r == 15)
+                    {
+                        if ((k + 16) > 64)
+                            return PJPG_DECODE_ERROR;
+
+                        k += (16 - 1); // - 1 because the loop counter is k
+                    }
+                    else
+                        break;
+                }
+            }
+
+            //  transformBlockReduce(mcuBlock);
+        }
+        else {
+            // Decode and dequantize AC coefficients
+            for (k = 1; k < 64; k++) {
+                uint16_t extraBits;
+
+                s = huffDecode(compACTab ? &gHuffTab3 : &gHuffTab2, compACTab ? gHuffVal3 : gHuffVal2);
+
+                extraBits = 0;
+                numExtraBits = s & 0xF;
+                if (numExtraBits)
+                    extraBits = getBits2(numExtraBits);
+
+                r = s >> 4;
+                s &= 15;
+
+                if (s) {
+                    int16_t ac;
+
+                    if (r) {
+                        if ((k + r) > 63)
+                            return PJPG_DECODE_ERROR;
+                        //  return (k+r);
+
+                        while (r) {
+                            zigzagcoeffs[0][k++] = 0;
+                            r--;
+                        }
+                    }
+
+                    ac = huffExtend(extraBits, s);
+
+                    zigzagcoeffs[0][k] = ac;
+                } else {
+                    if (r == 15) {
+                        if ((k + 16) > 64)
+                            return PJPG_DECODE_ERROR;
+
+                        for (r = 16; r > 0; r--) {
+                            zigzagcoeffs[0][k++] = 0;
+                        }
+
+                        k--; // - 1 because the loop counter is k
+                    } else
+                        break;
+                }
+            }
+            while (k < 64) {
+                zigzagcoeffs[0][k++] = 0;
+            }
+        }
+        for(int i = 0; i < 64; i++)
+        {
+            coeffs[0][counter] = zigzagcoeffs[0][i];
+            counter++;
+        }
+    }
     return 0;
 }
 
@@ -3190,7 +3325,7 @@ void DCT_function()
         DCT(block);
         for(int j = 0; j < 8; j++)
         {
-            coeffs[j][i] = nearbyint(block[j]/level);
+            coeffs[j][i] = nearbyint(block[j]/level_Y);
         }
     }
 }
@@ -3208,7 +3343,7 @@ void IDCT_function()
         IDCT(block);
         for(int j = 0; j < 8; j++)
         {
-            coeffs[j][i] = nearbyint(block[j]/8.0*level);
+            coeffs[j][i] = nearbyint(block[j]/8.0*level_Y);
         }
     }
 }
@@ -3378,10 +3513,14 @@ void DCT16transform()
 
         for (int i = 0; i < 16; i++)
             for (int j = 0; j < 16; j++) {
-                coeffs[0][counter] = nearbyint(temp[i][j]/level);
+                coeffs[0][counter] = nearbyint(temp[i][j]/level_Y);
                 counter++;
             }
-        counter = counter + 128; //skip Cb and Cr
+        for(int i = 0; i < 128; i++)
+        {
+            coeffs[0][counter] = nearbyint(coeffs[0][counter]/level_C); //quantize Cb and Cr
+            counter++;
+        }
     }
 }
 
@@ -3433,6 +3572,251 @@ void izigzag16()
     }
 }
 
+void idct16_1d(const float *src, float *dst)
+{
+    for (int i = 0; i < 16; i++)
+    {
+        const float mx00 = 1.4142135623731f  *src[0];
+        const float mx01 = 1.40740373752638f *src[1] + 0.138617169199091f*src[15];
+        const float mx02 = 1.38703984532215f *src[2] + 0.275899379282943f*src[14];
+        const float mx03 = 1.35331800117435f *src[3] + 0.410524527522357f*src[13];
+        const float mx04 = 1.30656296487638f *src[4] + 0.541196100146197f*src[12];
+        const float mx05 = 1.24722501298667f *src[5] + 0.666655658477747f*src[11];
+        const float mx06 = 1.17587560241936f *src[6] + 0.785694958387102f*src[10];
+        const float mx07 = 1.09320186700176f *src[7] + 0.897167586342636f*src[9];
+        const float mx08 = 1.4142135623731f  *src[8];
+        const float mx09 = -0.897167586342636f*src[7] + 1.09320186700176f*src[9];
+        const float mx0a = 0.785694958387102f*src[6] - 1.17587560241936f*src[10];
+        const float mx0b = -0.666655658477747f*src[5] + 1.24722501298667f*src[11];
+        const float mx0c = 0.541196100146197f*src[4] - 1.30656296487638f*src[12];
+        const float mx0d = -0.410524527522357f*src[3] + 1.35331800117435f*src[13];
+        const float mx0e = 0.275899379282943f*src[2] - 1.38703984532215f*src[14];
+        const float mx0f = -0.138617169199091f*src[1] + 1.40740373752638f*src[15];
+        const float mx12 = mx00 + mx08;
+        const float mx13 = mx01 + mx07;
+        const float mx14 = mx02 + mx06;
+        const float mx15 = mx03 + mx05;
+        const float mx16 = 1.4142135623731f*mx04;
+        const float mx17 = mx00 - mx08;
+        const float mx18 = mx01 - mx07;
+        const float mx19 = mx02 - mx06;
+        const float mx1a = mx03 - mx05;
+        const float mx1d = mx12 + mx16;
+        const float mx1e = mx13 + mx15;
+        const float mx1f = 1.4142135623731f*mx14;
+        const float mx20 = mx12 - mx16;
+        const float mx21 = mx13 - mx15;
+        const float mx22 = 0.25f * (mx1d - mx1f);
+        const float mx23 = 0.25f * (mx20 + mx21);
+        const float mx24 = 0.25f * (mx20 - mx21);
+        const float mx25 = 1.4142135623731f*mx17;
+        const float mx26 = 1.30656296487638f*mx18 + 0.541196100146197f*mx1a;
+        const float mx27 = 1.4142135623731f*mx19;
+        const float mx28 = -0.541196100146197f*mx18 + 1.30656296487638f*mx1a;
+        const float mx29 = 0.176776695296637f * (mx25 + mx27) + 0.25f*mx26;
+        const float mx2a = 0.25f * (mx25 - mx27);
+        const float mx2b = 0.176776695296637f * (mx25 + mx27) - 0.25f*mx26;
+        const float mx2c = 0.353553390593274f*mx28;
+        const float mx1b = 0.707106781186547f * (mx2a - mx2c);
+        const float mx1c = 0.707106781186547f * (mx2a + mx2c);
+        const float mx2d = 1.4142135623731f*mx0c;
+        const float mx2e = mx0b + mx0d;
+        const float mx2f = mx0a + mx0e;
+        const float mx30 = mx09 + mx0f;
+        const float mx31 = mx09 - mx0f;
+        const float mx32 = mx0a - mx0e;
+        const float mx33 = mx0b - mx0d;
+        const float mx37 = 1.4142135623731f*mx2d;
+        const float mx38 = 1.30656296487638f*mx2e + 0.541196100146197f*mx30;
+        const float mx39 = 1.4142135623731f*mx2f;
+        const float mx3a = -0.541196100146197f*mx2e + 1.30656296487638f*mx30;
+        const float mx3b = 0.176776695296637f * (mx37 + mx39) + 0.25f*mx38;
+        const float mx3c = 0.25f * (mx37 - mx39);
+        const float mx3d = 0.176776695296637f * (mx37 + mx39) - 0.25f*mx38;
+        const float mx3e = 0.353553390593274f*mx3a;
+        const float mx34 = 0.707106781186547f * (mx3c - mx3e);
+        const float mx35 = 0.707106781186547f * (mx3c + mx3e);
+        const float mx3f = 1.4142135623731f*mx32;
+        const float mx40 = mx31 + mx33;
+        const float mx41 = mx31 - mx33;
+        const float mx42 = 0.25f * (mx3f + mx40);
+        const float mx43 = 0.25f * (mx3f - mx40);
+        const float mx44 = 0.353553390593274f*mx41;
+
+        dst[0] = 0.176776695296637f * (mx1d + mx1f) + 0.25f*mx1e;
+        dst[1] = 0.707106781186547f * (mx29 + mx3d);
+        dst[2] = 0.707106781186547f * (mx29 - mx3d);
+        dst[3] = 0.707106781186547f * (mx23 - mx43);
+        dst[4] = 0.707106781186547f * (mx23 + mx43);
+        dst[5] = 0.707106781186547f * (mx1b - mx35);
+        dst[6] = 0.707106781186547f * (mx1b + mx35);
+        dst[7] = 0.707106781186547f * (mx22 + mx44);
+        dst[8] = 0.707106781186547f * (mx22 - mx44);
+        dst[9] = 0.707106781186547f * (mx1c + mx34);
+        dst[10] = 0.707106781186547f * (mx1c - mx34);
+        dst[11] = 0.707106781186547f * (mx24 + mx42);
+        dst[12] = 0.707106781186547f * (mx24 - mx42);
+        dst[13] = 0.707106781186547f * (mx2b - mx3b);
+        dst[14] = 0.707106781186547f * (mx2b + mx3b);
+        dst[15] = 0.176776695296637f * (mx1d + mx1f) - 0.25f*mx1e;
+        dst += 16;
+        src += 16;
+    }
+}
+
+void transpose8x8(float* src)
+{
+    __declspec(align(16)) float temp[16];
+    __m128 m0 = _mm_load_ps(src);
+    __m128 m1 = _mm_load_ps(src+8);
+    __m128 m2 = _mm_load_ps(src+16);
+    __m128 m3 = _mm_load_ps(src+24);
+    _MM_TRANSPOSE4_PS(m0,m1,m2,m3);
+    _mm_store_ps(src,m0);
+    _mm_store_ps(src+8,m1);
+    _mm_store_ps(src+16,m2);
+    _mm_store_ps(src+24,m3);
+
+
+    m0 = _mm_load_ps(src+4);
+    m1 = _mm_load_ps(src+12);
+    m2 = _mm_load_ps(src+20);
+    m3 = _mm_load_ps(src+28);
+    _MM_TRANSPOSE4_PS(m0,m1,m2,m3);
+    /*_mm_store_ps(dest+32,m0);
+    _mm_store_ps(dest+40,m1);
+    _mm_store_ps(dest+48,m2);
+    _mm_store_ps(dest+56,m3);*/
+    _mm_store_ps(temp,m0);
+    _mm_store_ps(temp+4,m1);
+    _mm_store_ps(temp+8,m2);
+    _mm_store_ps(temp+12,m3);
+
+    m0 = _mm_load_ps(src+32);
+    m1 = _mm_load_ps(src+40);
+    m2 = _mm_load_ps(src+48);
+    m3 = _mm_load_ps(src+56);
+    _MM_TRANSPOSE4_PS(m0,m1,m2,m3);
+    _mm_store_ps(src+4,m0);
+    _mm_store_ps(src+12,m1);
+    _mm_store_ps(src+20,m2);
+    _mm_store_ps(src+28,m3);
+
+    memcpy(src+32,temp,sizeof(float)*4);
+    memcpy(src+40,temp+4,sizeof(float)*4);
+    memcpy(src+48,temp+8,sizeof(float)*4);
+    memcpy(src+56,temp+12,sizeof(float)*4);
+
+    m0 = _mm_load_ps(src+36);
+    m1 = _mm_load_ps(src+44);
+    m2 = _mm_load_ps(src+52);
+    m3 = _mm_load_ps(src+60);
+    _MM_TRANSPOSE4_PS(m0,m1,m2,m3);
+    _mm_store_ps(src+36,m0);
+    _mm_store_ps(src+44,m1);
+    _mm_store_ps(src+52,m2);
+    _mm_store_ps(src+60,m3);
+}
+
+void transpose16x16(float* src)
+{
+    __declspec(align(16)) float temp[64];
+    __declspec(align(16)) float tmp[64];
+    int sz = sizeof(float)*8;
+    for(int i=0;i<8;i++)
+    {
+        memcpy(temp+8*i,src+16*i,sz);
+    }
+    transpose8x8(temp);
+    for(int i=0;i<8;i++)
+    {
+        memcpy(src+16*i,temp+8*i,sz);
+    }
+
+    for(int i=0;i<8;i++)
+    {
+        memcpy(tmp+8*i,src+16*i+8,sz);
+        memcpy(temp+8*i,src+16*(i+8),sz);
+    }
+    transpose8x8(tmp);
+    transpose8x8(temp);
+    for(int i=0;i<8;i++)
+    {
+        memcpy(src+16*i+8,temp+8*i,sz);
+        memcpy(src+16*(i+8),tmp+8*i,sz);
+    }
+
+    for(int i=0;i<8;i++)
+    {
+        memcpy(temp+8*i,src+16*(i+8)+8,sz);
+    }
+    transpose8x8(temp);
+    for(int i=0;i<8;i++)
+    {
+        memcpy(src+16*(i+8)+8,temp+8*i,sz);
+    }
+}
+
+void iDCT16x16(const float* src, float* dest)
+{
+    idct16_1d(src, dest);
+    transpose16x16(dest);
+
+    idct16_1d(dest, dest);
+    transpose16x16(dest);
+}
+
+void IDCT16()
+{
+    float temp[256];
+    float out[256];
+    counter = 0;
+
+    while(counter < number_of_coeffs)
+    {
+        for(int i = 0; i < 256; i++)
+        {
+            temp[i] = coeffs[0][counter]*level_Y;
+            counter++;
+        }
+        counter = counter - 256;
+
+        iDCT16x16(temp, out);
+
+        for(int i = 0; i < 8; i++)
+            for(int j = 0; j < 8; j++)
+            {
+                coeffs[0][counter] = nearbyint(out[j+i*16]);
+                counter++;
+            }
+
+        for(int i = 0; i < 8; i++)
+            for(int j = 8; j < 16; j++)
+            {
+                coeffs[0][counter] = nearbyint(out[j+i*16]);
+                counter++;
+            }
+
+        for(int i = 8; i < 16; i++)
+            for(int j = 0; j < 8; j++)
+            {
+                coeffs[0][counter] = nearbyint(out[j+i*16]);
+                counter++;
+            }
+        for(int i = 8; i < 16; i++)
+            for(int j = 8; j < 16; j++)
+            {
+                coeffs[0][counter] = nearbyint(out[j+i*16]);
+                counter++;
+            }
+        for(int i = 0; i < 128; i++)
+        {
+            coeffs[0][counter] = nearbyint(coeffs[0][counter]*level_C); //scale Cb and Cr
+            counter++;
+        }
+    }
+}
+
 int main() {
 
     int n = 1;
@@ -3443,7 +3827,8 @@ int main() {
     uint8_t *pImage;
     int reduce = 0;
 
-    level = 1000.0;
+    level_Y = 50.0;
+    level_C = 10.0;
 
 
     counter = 0;
@@ -3468,14 +3853,19 @@ int main() {
     const bool isRGB = true;
     const bool downsample = true;
 
+
     auto ok = TooJpeg::writeJpeg(myOutput, width, height, isRGB, quality, downsample);
 
     myFile.close();
 
     counter = 0;
-    //pImage = pjpeg_load_from_file("compress.jpg", &width, &height, &comps, &scan_type, reduce, 0, 0, 1);
+    pImage = pjpeg_load_from_file("compress.jpg", &width, &height, &comps, &scan_type, reduce, 0, 0, 1);
 
     izigzag16();
+    IDCT16();
+
+    //for(int i = 256; i < 320; i++)
+       // cout<<coeffs[0][i]<<" ";
 
     counter = 0;
     x = "image.jpg";
