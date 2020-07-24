@@ -1948,10 +1948,10 @@ void upsampleCrV(uint8_t srcOfs, uint8_t dstOfs)
 void transformBlock(uint8_t mcuBlock)
 {
 
-  //  if(mcuBlock > 3) {
+    if(mcuBlock > 3) {
         idctRows();
         idctCols();
-  //  }
+    }
 
 
     switch (gScanType)
@@ -2278,13 +2278,6 @@ uint8_t decodeNextMCU(int frame, int mode)
 
             if(mode)
             {
-                    for(int j = 0; j < 8; j++){
-                    for(int i = 0; i < 8; i++)
-                    {
-                        cout<<pQ[i+j*8]<<" ";
-                    }
-                    cout<<endl;}
-                    system("PAUSE");
                     transformBlock(mcuBlock);
             }
             else {
@@ -3788,8 +3781,12 @@ void IDCT16()
 
         for(int i = 0; i < 256; i++)
         {
-            out[i] = out[i] / 45;
+            out[i] = out[i] / 32;
             out[i] = out[i] + 128;
+            if(out[i] > 255)
+                out[i] = 255;
+            if(out[i] < 0)
+                out[i] = 0;
         }
 
         for(int i = 0; i < 8; i++)
@@ -3850,11 +3847,13 @@ int main() {
         return EXIT_FAILURE;
     }
 
-   // DCT16transform();
-   // zigzag16();
+
+    DCT16transform();
+    zigzag16();
+
 
     counter = 0;
-/*
+
     myFile.open("compress.jpg", std::ios_base::out | std::ios_base::binary);
     uint8_t quality = 100;
     const auto bytesPerPixel = 3;
@@ -3871,7 +3870,11 @@ int main() {
 
     izigzag16();
     IDCT16();
-*/
+
+    for(int i = 0; i < 64; i++)
+    {
+        cout<<coeffs[0][i]<< " ";
+    }
 
     counter = 0;
     x = "image.jpg";
