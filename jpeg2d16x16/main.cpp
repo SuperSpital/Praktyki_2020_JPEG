@@ -348,7 +348,7 @@ uint8_t gMCUBufG[256];
 uint8_t gMCUBufB[256];
 
 int number_of_coeffs = 3133440;
-int16_t coeffs[8][3133440];
+int coeffs[8][3133440];
 int counter = 0;
 int16_t gCoeffBuf_scaled[64];
 int16_t gCoeffBuf[64];
@@ -1948,16 +1948,11 @@ void upsampleCrV(uint8_t srcOfs, uint8_t dstOfs)
 void transformBlock(uint8_t mcuBlock)
 {
 
-
-    if(mcuBlock > 3) {
+  //  if(mcuBlock > 3) {
         idctRows();
         idctCols();
-    }
+  //  }
 
-    for(int i = 0; i < 64; i++)
-        cout<<gCoeffBuf[i]<<" ";
-    cout<<endl;
-    system("PAUSE");
 
     switch (gScanType)
     {
@@ -2283,6 +2278,13 @@ uint8_t decodeNextMCU(int frame, int mode)
 
             if(mode)
             {
+                    for(int j = 0; j < 8; j++){
+                    for(int i = 0; i < 8; i++)
+                    {
+                        cout<<pQ[i+j*8]<<" ";
+                    }
+                    cout<<endl;}
+                    system("PAUSE");
                     transformBlock(mcuBlock);
             }
             else {
@@ -3516,6 +3518,7 @@ void DCT16transform()
                 coeffs[0][counter] = nearbyint(temp[i][j]/level_Y);
                 counter++;
             }
+
         for(int i = 0; i < 128; i++)
         {
             coeffs[0][counter] = nearbyint(coeffs[0][counter]/level_C); //quantize Cb and Cr
@@ -3783,6 +3786,12 @@ void IDCT16()
 
         iDCT16x16(temp, out);
 
+        for(int i = 0; i < 256; i++)
+        {
+            out[i] = out[i] / 45;
+            out[i] = out[i] + 128;
+        }
+
         for(int i = 0; i < 8; i++)
             for(int j = 0; j < 8; j++)
             {
@@ -3827,8 +3836,8 @@ int main() {
     uint8_t *pImage;
     int reduce = 0;
 
-    level_Y = 50.0;
-    level_C = 10.0;
+    level_Y = 100.0;
+    level_C = 50.0;
 
 
     counter = 0;
@@ -3841,12 +3850,11 @@ int main() {
         return EXIT_FAILURE;
     }
 
-
-    DCT16transform();
-    zigzag16();
+   // DCT16transform();
+   // zigzag16();
 
     counter = 0;
-
+/*
     myFile.open("compress.jpg", std::ios_base::out | std::ios_base::binary);
     uint8_t quality = 100;
     const auto bytesPerPixel = 3;
@@ -3863,9 +3871,7 @@ int main() {
 
     izigzag16();
     IDCT16();
-
-    //for(int i = 256; i < 320; i++)
-       // cout<<coeffs[0][i]<<" ";
+*/
 
     counter = 0;
     x = "image.jpg";
