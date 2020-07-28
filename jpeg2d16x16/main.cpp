@@ -419,6 +419,7 @@ float skalars6[] = {0.070868, 0.146165, 0.161322, 0.195387, 0.280618, 0.708512, 
 float skalars7[] = {0.0653123, 0.13367, 0.143655, 0.163832, 0.203453, 0.296159, 0.736163, 0.505059};
 float skalars8[] = {0.0628024, 0.12811, 0.13618,  0.15172, 0.17937,  0.23110, 0.34789,  0.85295};
 
+
 const uint8_t InvZAG16[256] =
         {0, 1, 16, 32, 17, 2, 3, 18, 33, 48, 64, 49, 34, 19, 4, 5,
          20, 35, 50, 65, 80, 96, 81, 66, 51, 36, 21, 6, 7, 22, 37, 52,
@@ -855,16 +856,49 @@ uint8_t readDHTMarker(void)
     return 0;
 }
 
+float lumquant[64];
+int lumdc;
+
+float tempQuant[] = {
+
+        16.5, 22.420773518772283, 22.44169864051119, 22.83552634438729, 16.08487097345343, 22.69275074822346, 22.94755933208465, 16.126094084837533,
+
+        16.020346936987433, 21.908856796898156, 22.627416997969522, 16.786596666835084, 15.614601791026102, 15.81139784056701, 22.358042986088932, 23.05409311307851,
+
+        15.811401898403052, 16.06757587573251, 16.25319034783973, 15.808690073334006, 23.268857430120203, 21.870882565972558, 15.671185757264936, 16.656974686748462,
+
+        15.856799260995341, 15.923961703004636, 15.518416548814132, 23.65073809065393, 18.814093688871026, 15.483202483872901, 16.207213970620135, 15.333725877852688,
+
+        14.631327386021672, 13.95119434757324, 16.05154696731253, 20.961440831623236, 16.22513617390117, 14.943650813895957, 16.593902080287172, 15.78947368421053,
+
+        16.333932750492135, 15.352116395368013, 15.953014806839898, 15.738374479825495, 13.18359327202711, 16.753793526414462, 16.48206333034803, 15.136943907520575,
+
+        14.663874425037307, 2.0669705847450217, 16.962788246488568, 15.6340940233712, 15.921361035146399, 15.233015694726804, 14.866186664822067, 16.951810828512663,
+
+        16.001411347394942, 15.501803092677521, 18.449510816025043, 14.046681194225947, 17.034785437286907, 18.17849508944211, 12.632229957584617, 13.562198464510084
+};
+
 void createWinogradQuant(int16_t* pQuant)
 {
     uint8_t i;
 
+
     for (i = 0; i < 64; i++)
     {
-        long x = pQuant[i];
-        x *= gWinogradQuant[i];
+        long y = pQuant[i];
+        lumquant[i] = pQuant[i];
+        long x = y * gWinogradQuant[i];
         pQuant[i] = (int16_t)((x + (1 << (PJPG_WINOGRAD_QUANT_SCALE_BITS - PJPG_DCT_SCALE_BITS - 1))) >> (PJPG_WINOGRAD_QUANT_SCALE_BITS - PJPG_DCT_SCALE_BITS));
+
+       // x = y * tempQuant[i];
+       // lumquant[i] = (int16_t)((x + (1 << (PJPG_WINOGRAD_QUANT_SCALE_BITS - PJPG_DCT_SCALE_BITS - 1))) >> (PJPG_WINOGRAD_QUANT_SCALE_BITS - PJPG_DCT_SCALE_BITS));
+
+
+     //  lumquant[i] = tempQuant[i];
+
     }
+
+
 }
 
 uint8_t readDQTMarker(void)
@@ -2122,6 +2156,7 @@ uint8_t decodeNextMCU(int frame, int mode)
         const int16_t* pQ = compQuant ? gQuant1 : gQuant0;
         uint16_t r, dc;
 
+
         uint8_t s = huffDecode(compDCTab ? &gHuffTab1 : &gHuffTab0, compDCTab ? gHuffVal1 : gHuffVal0);
 
         r = 0;
@@ -2143,10 +2178,14 @@ uint8_t decodeNextMCU(int frame, int mode)
         }
 
         if(mode)
-            //gCoeffBuf[0] = gCoeffBuf_scaled[0];
-            gCoeffBuf[0];
-        else
-            gCoeffBuf_scaled[0] = dc * pQ[0];
+        { //gCoeffBuf[0] = gCoeffBuf_scaled[0];
+           }
+        else {
+            if (mcuBlock > 3)
+                gCoeffBuf_scaled[0] = dc * pQ[0];
+            else
+                gCoeffBuf_scaled[0] = dc * lumquant[0];
+        }
 
         compACTab = gCompACTab[componentID];
 
@@ -2238,7 +2277,16 @@ uint8_t decodeNextMCU(int frame, int mode)
                         //gCoeffBuf[ZAG[k]] = gCoeffBuf_scaled[ZAG[k]] * pQ[k];
                         k=k;
                     else
-                        gCoeffBuf_scaled[ZAG[k]] = ac * pQ[k];
+                    {
+                        if(mcuBlock < 4)
+                        {
+                            gCoeffBuf_scaled[ZAG[k]] = nearbyint(ac * lumquant[k]);
+                           //gCoeffBuf_scaled[k] = ac;
+                        } else{
+                            gCoeffBuf_scaled[ZAG[k]] = ac * pQ[k];
+                        }
+
+                    }
                 }
                 else
                 {
@@ -3397,21 +3445,33 @@ void DCT16transform()
 
     while(counter < number_of_coeffs)
     {
+
+
         for (int i = 0; i < 8; i++)
             for (int j = 0; j < 8; j++) {
                 temp[i][j] = (float)coeffs[0][counter];
                 counter++;
             }
+
+
         for (int i = 0; i < 8; i++)
             for (int j = 8; j < 16; j++) {
                 temp[i][j] = (float)coeffs[0][counter];
                 counter++;
             }
+
+
         for (int i = 8; i < 16; i++)
             for (int j = 0; j < 8; j++) {
                 temp[i][j] = (float)coeffs[0][counter];
                 counter++;
             }
+       /* coeffs[0][counter] = 2816;
+        coeffs[0][counter+1] = -816;
+        coeffs[0][counter+3] = -962;
+        coeffs[0][counter+5] = -1440;
+        coeffs[0][counter+7] = -4101;*/
+
         for (int i = 8; i < 16; i++)
             for (int j = 8; j < 16; j++) {
                 temp[i][j] = (float)coeffs[0][counter];
@@ -3505,6 +3565,19 @@ void DCT16transform()
                           skalars8[4] * (-out[4][i] + out[12][i]) + skalars8[5] * (out[5][i] + out[13][i]) +
                           skalars8[6] * (-out[6][i] + out[14][i]) + skalars8[7] * (out[7][i] + out[15][i]);
         }
+
+        for (int i = 0; i < 16; i++)
+            for (int j = 0; j < 16; j++) {
+                if(j % 2 == 0 && i % 2 == 0)
+                {
+                    temp[i][j] /= 2;
+                }
+                else
+                {
+                    if((j % 2 == 1 && i % 2 == 0) || (j % 2 == 0 && i % 2 == 1))
+                        temp[i][j] /= 1.4142;
+                }
+            }
 
         for (int i = 0; i < 16; i++)
             for (int j = 0; j < 16; j++) {
@@ -3779,9 +3852,10 @@ void IDCT16()
 
         iDCT16x16(temp, out);
 
+
         for(int i = 0; i < 256; i++)
         {
-            out[i] = out[i] / 32;
+            //out[i] = out[i] / 32;
             out[i] = out[i] + 128;
             if(out[i] > 255)
                 out[i] = 255;
@@ -3825,6 +3899,23 @@ void IDCT16()
 
 int main() {
 
+    for(int i = 1; i < 8; i++)
+        skalars1[i] *= 0.7071;
+    for(int i = 1; i < 8; i++)
+        skalars2[i] *= 0.7071;;
+    for(int i = 1; i < 8; i++)
+        skalars3[i] *= 0.7071;;
+    for(int i = 1; i < 8; i++)
+        skalars4[i] *= 0.7071;;
+    for(int i = 1; i < 8; i++)
+        skalars5[i] *= 0.7071;;
+    for(int i = 1; i < 8; i++)
+        skalars6[i] *= 0.7071;;
+    for(int i = 1; i < 8; i++)
+        skalars7[i] *= 0.7071;;
+    for(int i = 1; i < 8; i++)
+        skalars8[i] *= 0.7071;;
+
     int n = 1;
     const char *pSrc_filename;
     const char *pDst_filename;
@@ -3833,7 +3924,7 @@ int main() {
     uint8_t *pImage;
     int reduce = 0;
 
-    level_Y = 100.0;
+    level_Y = 2.0;
     level_C = 50.0;
 
 
@@ -3847,8 +3938,47 @@ int main() {
         return EXIT_FAILURE;
     }
 
+    for(int i = 0; i < 64; i++) {
+        if(i % 8 == 0)
+            cout<<endl;
+        cout << coeffs[0][i] << ", ";
 
-    DCT16transform();
+    }
+    cout<<endl;
+    for(int i = 64; i < 128; i++) {
+        if(i % 8 == 0)
+            cout<<endl;
+        cout << coeffs[0][i] << ", ";
+
+    }
+    cout<<endl;
+    for(int i = 128; i < 192; i++) {
+        if(i % 8 == 0)
+            cout<<endl;
+        cout << coeffs[0][i] << ", ";
+
+    }
+    cout<<endl;
+
+    for(int i = 192; i < 256; i++) {
+        if(i % 8 == 0)
+            cout<<endl;
+        cout << coeffs[0][i] << ", ";
+
+    }
+    cout<<endl;
+
+
+
+   DCT16transform();
+
+    for(int i = 0; i < 256; i++) {
+        if(i % 16    == 0)
+            cout<<endl;
+        cout << coeffs[0][i] * level_Y<< " ";
+
+    }
+    cout<<endl;
     zigzag16();
 
 
@@ -3871,10 +4001,17 @@ int main() {
     izigzag16();
     IDCT16();
 
-    for(int i = 0; i < 64; i++)
-    {
-        cout<<coeffs[0][i]<< " ";
+    for(int i = 0; i < 256; i++) {
+        if(i % 64 == 0)
+            cout<<endl;
+        if(i % 8 == 0)
+            cout<<endl;
+        cout << coeffs[0][i] << " ";
+
+
     }
+    cout<<endl;
+
 
     counter = 0;
     x = "image.jpg";
