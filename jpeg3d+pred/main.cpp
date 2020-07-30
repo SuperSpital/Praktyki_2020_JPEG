@@ -561,12 +561,12 @@ uint16_t getBits(uint8_t numBits, uint8_t FFCheck)
 
 PJPG_INLINE uint16_t getBits1(uint8_t numBits)
 {
-return getBits(numBits, 0);
+    return getBits(numBits, 0);
 }
 
 PJPG_INLINE uint16_t getBits2(uint8_t numBits)
 {
-return getBits(numBits, 1);
+    return getBits(numBits, 1);
 }
 
 PJPG_INLINE uint8_t getBit(void)
@@ -1594,14 +1594,14 @@ void idctCols()
             int16_t x42 = x31 - x32;
 
             // descale, convert to unsigned and clamp to 8-bit
-           /* *(pSrc+0*8) = clamp(PJPG_DESCALE(x40 + x17)  + 128);
-            *(pSrc+1*8) = clamp(PJPG_DESCALE(x41 + tmp2) + 128);
-            *(pSrc+2*8) = clamp(PJPG_DESCALE(x42 + tmp3) + 128);
-            *(pSrc+3*8) = clamp(PJPG_DESCALE(x43 - x44)  + 128);
-            *(pSrc+4*8) = clamp(PJPG_DESCALE(x43 + x44)  + 128);
-            *(pSrc+5*8) = clamp(PJPG_DESCALE(x42 - tmp3) + 128);
-            *(pSrc+6*8) = clamp(PJPG_DESCALE(x41 - tmp2) + 128);
-            *(pSrc+7*8) = clamp(PJPG_DESCALE(x40 - x17)  + 128);*/
+            /* *(pSrc+0*8) = clamp(PJPG_DESCALE(x40 + x17)  + 128);
+             *(pSrc+1*8) = clamp(PJPG_DESCALE(x41 + tmp2) + 128);
+             *(pSrc+2*8) = clamp(PJPG_DESCALE(x42 + tmp3) + 128);
+             *(pSrc+3*8) = clamp(PJPG_DESCALE(x43 - x44)  + 128);
+             *(pSrc+4*8) = clamp(PJPG_DESCALE(x43 + x44)  + 128);
+             *(pSrc+5*8) = clamp(PJPG_DESCALE(x42 - tmp3) + 128);
+             *(pSrc+6*8) = clamp(PJPG_DESCALE(x41 - tmp2) + 128);
+             *(pSrc+7*8) = clamp(PJPG_DESCALE(x40 - x17)  + 128);*/
             *(pSrc+0*8) = clamp(PJPG_DESCALE(x40 + x17) );
             *(pSrc+1*8) = clamp(PJPG_DESCALE(x41 + tmp2));
             *(pSrc+2*8) = clamp(PJPG_DESCALE(x42 + tmp3));
@@ -2133,7 +2133,7 @@ uint8_t decodeNextMCU(int frame, int mode)
                 }
             }
 
-          //  transformBlockReduce(mcuBlock);
+            //  transformBlockReduce(mcuBlock);
         }
         else
         {
@@ -2165,8 +2165,8 @@ uint8_t decodeNextMCU(int frame, int mode)
                         while (r)
                         {
                             //k++
-                                // gCoeffBuf[ZAG[k++]] = 0;
-                          //  gCoeffBuf[ZAG[k]] = 0;
+                            // gCoeffBuf[ZAG[k++]] = 0;
+                            //  gCoeffBuf[ZAG[k]] = 0;
                             if(mode)
                                 //k++;
                                 gCoeffBuf[ZAG[k++]] = 0;
@@ -2178,7 +2178,7 @@ uint8_t decodeNextMCU(int frame, int mode)
 
                     ac = huffExtend(extraBits, s);
 
-                        //gCoeffBuf[ZAG[k]] = ac * pQ[k];
+                    //gCoeffBuf[ZAG[k]] = ac * pQ[k];
                     if(mode)
                         gCoeffBuf[ZAG[k]] = gCoeffBuf_scaled[ZAG[k]] * pQ[k];
                     else
@@ -2192,11 +2192,11 @@ uint8_t decodeNextMCU(int frame, int mode)
                             return PJPG_DECODE_ERROR;
 
                         for (r = 16; r > 0; r--) {
-                           // k++;
-                           //    gCoeffBuf[ZAG[k++]] = 0;
-                       //     gCoeffBuf[ZAG[k]] = 0;
+                            // k++;
+                            //    gCoeffBuf[ZAG[k++]] = 0;
+                            //     gCoeffBuf[ZAG[k]] = 0;
                             if(mode)
-                               // k++;
+                                // k++;
                                 gCoeffBuf[ZAG[k++]] = 0;
                             else
                                 gCoeffBuf_scaled[ZAG[k++]] = 0;
@@ -2210,11 +2210,11 @@ uint8_t decodeNextMCU(int frame, int mode)
             }
 
             while (k < 64) {
-               // k++;
-               //    gCoeffBuf[ZAG[k++]] = 0;
-             //   gCoeffBuf[ZAG[k]] = 0;
+                // k++;
+                //    gCoeffBuf[ZAG[k++]] = 0;
+                //   gCoeffBuf[ZAG[k]] = 0;
                 if(mode)
-                   // k++;
+                    // k++;
                     gCoeffBuf[ZAG[k++]] = 0;
                 else
                     gCoeffBuf_scaled[ZAG[k++]] = 0;
@@ -2226,11 +2226,11 @@ uint8_t decodeNextMCU(int frame, int mode)
             }
             else {
 
-               for (int i = 0; i < 64; i++) {
-                   coeffs[frame][counter] = gCoeffBuf_scaled[i];
-                   counter++;
-               }
-           }
+                for (int i = 0; i < 64; i++) {
+                    coeffs[frame][counter] = gCoeffBuf_scaled[i];
+                    counter++;
+                }
+            }
         }
     }
 
@@ -2342,7 +2342,7 @@ uint8_t decodeNextMCU3D(int frame, int mode)
                     if (r)
                     {
                         if ((k + r) > 511)
-                           return PJPG_DECODE_ERROR;
+                            return PJPG_DECODE_ERROR;
                         //  return (k+r);
 
                         while (r)
@@ -3110,6 +3110,68 @@ void IDCT_function()
     }
 }
 
+void prediction()
+{
+    for(int i = 0; i < number_of_coeffs/64; i++)
+    {
+        for(int j = 7; j > 0; j--)
+        {
+            bool pred = true;
+            int k = i*64;
+
+            if(abs(coeffs[j][k] - coeffs[j-1][k]) > 1)
+            {
+                pred = false;
+                continue;
+            }
+
+            for(k = k+1; k < (i+1)*64; k++)
+            {
+                if(abs(coeffs[j][k] - coeffs[j-1][k]) > 1)
+                {
+                    pred = false;
+                    break;
+                }
+            }
+            if(pred)
+            {
+                for(k = i*64; k < (i+1)*64; k++)
+                {
+                    coeffs[j][k] = 0;
+                }
+            }
+        }
+    }
+}
+
+void iprediction()
+{
+    for(int i = 0; i < number_of_coeffs/64; i++)
+    {
+        for(int j = 1; j < 8; j++)
+        {
+            bool pred = true;
+
+            for(int k = i*64; k < (i+1)*64; k++)
+            {
+                if(coeffs[j][k] != 0)
+                {
+                    pred = false;
+                    break;
+                }
+            }
+
+            if(pred)
+            {
+                for(int k = i*64; k < (i+1)*64; k++)
+                {
+                    coeffs[j][k] = coeffs[j-1][k];
+                }
+            }
+        }
+    }
+}
+
 void zizgzag_function()
 {
     for(int i = 0; i < (number_of_coeffs/64); i++)
@@ -3155,96 +3217,7 @@ void izigzag_function()
         }
     }
 }
-/* Nieużywane funkcje
-int16_t RLC_encode_block(int16_t lastDC, int nr_block, FILE * file)
-{
-    int16_t buf[1];
-    int16_t DC = zigzagcoeffs[nr_block][0];
-    buf[0] = DC - lastDC;
 
-    fwrite(buf, sizeof(int16_t), 1, file);
-
-    int16_t zeros = 0;
-
-    for(int i = 1; i < 512; i++)
-    {
-        if(zigzagcoeffs[nr_block][i] != 0)
-        {
-            buf[0] = zeros;
-            fwrite(buf, sizeof(int16_t), 1, file);
-            buf[0] = zigzagcoeffs[nr_block][i];
-            fwrite(buf, sizeof(int16_t), 1, file);
-            zeros = 0;
-        }
-        else
-        {
-            zeros++;
-        }
-    }
-    if(zeros > 0)
-    {
-        buf[0] = -69;
-        fwrite(buf, sizeof(int16_t), 1, file);
-       // fwrite(buf, sizeof(int16_t), 1, file);
-    }
-
-    return DC;
-}
-
-void RLC_encode(FILE * file)
-{
-    int16_t lastDC = 0;
-    for(int i = 0; i < (number_of_coeffs/64); i++)
-    {
-        lastDC = RLC_encode_block(lastDC, i, file);
-    }
-}
-
-void RLC_decode(FILE * file)
-{
-    int16_t lastDC = 0;
-    int16_t buf[1];
-
-    //for(int i = 0; i < (number_of_coeffs/64); i++)
-    for(int i = 0; i < 1; i++)
-    {
-        int l = 0;
-        fread(buf, sizeof(int16_t), 1, file);
-        zigzagcoeffs[i][l] = buf[0] + lastDC;
-        lastDC = buf[0];
-        l++;
-
-        while(true)
-        {
-            if(l == 512)
-                break;
-
-            fread(buf, sizeof(int16_t), 1, file);
-
-           // if(buf[0] == 0 and buf[1] == 0)
-            if(buf[0] == -69)
-            {
-                for(int j = l; j < 512; j++)
-                {
-                    zigzagcoeffs[i][j] = 0;
-                }
-                break;
-            }
-            else
-            {
-                for(int j = 0; j < buf[0]; j++)
-                {
-                    zigzagcoeffs[i][l] = 0;
-                    l++;
-                }
-                fread(buf, sizeof(int16_t), 1, file);
-                zigzagcoeffs[i][l] = buf[0];
-                l++;
-            }
-        }
-    }
-}
-*/
 int main(int argc, char *argv[]) {
 
     int n = 1;
@@ -3277,7 +3250,8 @@ int main(int argc, char *argv[]) {
             }
         }
 
-        DCT_function();
+        //DCT_function();
+        prediction();
         zizgzag_function();
 
         myFile.open("block.jpg", std::ios_base::out | std::ios_base::binary);
@@ -3294,7 +3268,8 @@ int main(int argc, char *argv[]) {
         pImage = pjpeg_load_from_file("block.jpg", &width, &height, &comps, &scan_type, reduce, 0, 0, 1);
 
         izigzag_function();
-        IDCT_function();
+        iprediction();
+       // IDCT_function();
 
         for (int i = 0; i < 8; i++) {
             counter = 0;
